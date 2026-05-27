@@ -1,0 +1,46 @@
+# ═══════════════════════════════════════════════════
+# JARVIS AI PLATFORM — Docker Compose
+# Production-like local setup
+#
+# Usage:
+#   Start:   docker-compose up -d
+#   Stop:    docker-compose down
+#   Logs:    docker-compose logs -f
+#   Reset:   docker-compose down -v (DELETES ALL DATA)
+# ═══════════════════════════════════════════════════
+
+version: '3.9'
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: jarvis-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jarvis
+      POSTGRES_USER: jarvis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jarvis}
+    ports:
+      - "5432:5432"
+    volumes:
+      - jarvis-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jarvis -d jarvis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - jarvis-network
+
+volumes:
+  jarvis-postgres-data:
+    driver: local
+    labels:
+      com.jarvis.description: "Jarvis PostgreSQL persistent data"
+
+networks:
+  jarvis-network:
+    driver: bridge
+    name: jarvis-network

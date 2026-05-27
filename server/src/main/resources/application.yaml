@@ -1,0 +1,184 @@
+# ═══════════════════════════════════════════════════
+# Jarvis AI Platform — Application Configuration
+# Version: 0.1.0
+#
+# SENSITIVE VALUES come from environment variables.
+# See .env.example for the full list.
+# NEVER commit real values to Git.
+# ═══════════════════════════════════════════════════
+
+spring:
+  application:
+    name: jarvis-ai-platform
+
+  # ── Database (R2DBC) ──────────────────────────────
+  r2dbc:
+    url: ${DATABASE_URL:r2dbc:postgresql://localhost:5432/jarvis}
+    username: ${DATABASE_USERNAME:jarvis}
+    password: ${DATABASE_PASSWORD:jarvis}
+    pool:
+      initial-size: 3
+      max-size: 15
+      max-idle-time: 30m
+      validation-query: SELECT 1
+
+  # ── Database Migrations (Flyway) ──────────────────
+  flyway:
+    enabled: true
+    url: ${FLYWAY_URL:jdbc:postgresql://localhost:5432/jarvis}
+    user: ${DATABASE_USERNAME:jarvis}
+    password: ${DATABASE_PASSWORD:jarvis}
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    out-of-order: false
+
+  # ── Spring AI — Ollama ────────────────────────────
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        model: ${OLLAMA_MODEL:llama3.1:8b}
+        options:
+          temperature: 0.7
+          num-predict: 2048
+      embedding:
+        model: nomic-embed-text
+
+    # ── Spring AI — Gemini ──────────────────────────
+    google:
+      api-key: ${GEMINI_API_KEY:}
+      chat:
+        model: ${GEMINI_MODEL:gemini-3.5-flash}
+        options:
+          temperature: 0.7
+          max-output-tokens: 2048
+
+    # ── Spring AI — PgVector ─────────────────────────
+    vectorstore:
+      pgvector:
+        enabled: false           # Phase 2 — disabled until needed
+        index-type: hnsw
+        distance-type: cosine_distance
+        dimensions: 768
+
+  # ── Spring Shell ──────────────────────────────────
+  shell:
+    interactive:
+      enabled: true
+    history:
+      enabled: true
+      name: .jarvis-history
+
+# ═══════════════════════════════════════════════════
+# JARVIS CUSTOM CONFIGURATION
+# ═══════════════════════════════════════════════════
+jarvis:
+  version: "@project.version@"    # Injected by Maven
+
+  # ── Security ──────────────────────────────────────
+  security:
+    jwt:
+      secret: ${JARVIS_JWT_SECRET}
+      access-token-expiry: 15m
+      refresh-token-expiry: 7d
+      issuer: jarvis-ai-platform
+
+    rate-limiting:
+      enabled: true
+      chat-requests-per-minute: 30
+      auth-attempts-per-minute: 5
+      admin-requests-per-minute: 10
+
+    argon2:
+      memory: 65536     # 64MB memory
+      iterations: 3
+      parallelism: 1
+      hash-length: 32
+      salt-length: 16
+
+  # ── AI Orchestration ──────────────────────────────
+  ai:
+    primary-provider: ollama
+    fallback-provider: gemini
+    provider-health-check-timeout: 3s
+
+    streaming:
+      timeout: 120s
+      buffer-size: 1
+
+    context:
+      max-tokens: 8000
+      reserve-for-response: 2000
+      summarize-threshold: 25
+      summarize-batch-size: 20
+      min-messages-to-keep: 6
+
+    guardrails:
+      max-input-length: 10000
+      injection-detection-enabled: true
+
+  # ── CLI ───────────────────────────────────────────
+  cli:
+    config-dir: ${user.home}/.jarvis
+    log-dir: ${user.home}/.jarvis/logs
+    tokens-file: ${user.home}/.jarvis/auth.json
+    session-file: ${user.home}/.jarvis/session.json
+    preferences-file: ${user.home}/.jarvis/preferences.json
+
+  # ── Observability ─────────────────────────────────
+  observability:
+    log-ai-requests: true
+    log-token-usage: true
+    log-provider-selection: true
+    performance-summary-interval: 5m
+
+# ═══════════════════════════════════════════════════
+# SPRING BOOT ACTUATOR
+# ═══════════════════════════════════════════════════
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,loggers,prometheus
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  info:
+    env:
+      enabled: true
+  metrics:
+    tags:
+      application: jarvis-ai-platform
+
+# ═══════════════════════════════════════════════════
+# LOGGING
+# ═══════════════════════════════════════════════════
+logging:
+  level:
+    ai.jarvis: INFO
+    org.springframework: WARN
+    io.r2dbc: WARN
+    org.flywaydb: INFO
+    reactor.netty: WARN
+  file:
+    name: ${user.home}/.jarvis/logs/jarvis.log
+  logback:
+    rollingpolicy:
+      max-file-size: 50MB
+      max-history: 30
+      total-size-cap: 500MB
+
+# ═══════════════════════════════════════════════════
+# APP INFO (exposed via /actuator/info)
+# ═══════════════════════════════════════════════════
+info:
+  app:
+    name: Jarvis AI Platform
+    version: "@project.version@"
+    description: "Local-first, open-source AI assistant"
+    java-version: "@java.version@"
+  links:
+    github: "https://github.com/YOUR_USERNAME/jarvis-ai-platform"
+    docs: "https://github.com/YOUR_USERNAME/jarvis-ai-platform/docs"
