@@ -32,13 +32,14 @@ public class ChatCommands {
 
         if (!state.isLoggedIn()) {
             System.out.println(
-                    "⚠️  Please login first. Type: login");
+                    "Please login first. Type: login");
             return;
         }
 
         if (!http.isServerReachable()) {
             System.out.println(
-                    "❌ Cannot connect to server.");
+                    "Cannot connect to server. "
+                            + "Is Jarvis running?");
             return;
         }
 
@@ -53,13 +54,13 @@ public class ChatCommands {
                 : "Starting new session...";
 
         System.out.println(
-                "╔══════════════════════════════════════╗");
+                "+--------------------------------------+");
         System.out.println(
-                "║  " + padRight(sessionInfo, 36) + "║");
+                "|  " + padRight(sessionInfo, 36) + "|");
         System.out.println(
-                "║  Type 'exit' to return to menu       ║");
+                "|  Type 'exit' to return to menu       |");
         System.out.println(
-                "╚══════════════════════════════════════╝");
+                "+--------------------------------------+");
 
         BufferedReader reader = new BufferedReader(
                 new InputStreamReader(System.in));
@@ -89,26 +90,27 @@ public class ChatCommands {
 
             } catch (Exception e) {
                 System.out.println(
-                        "❌ Error: " + e.getMessage());
+                        "Error: " + e.getMessage());
             }
         }
     }
 
     @Command(
             name = "ask",
-            description = "Ask Jarvis a single question"
+            description = "Ask Jarvis a quick question. "
+                    + "Usage: ask --message \"Hello Jarvis\""
     )
     public void ask(
             @Option(
                     longName = "message",
                     shortName = 'm',
-                    description = "Your question",
+                    description = "Your question for Jarvis",
                     required = true
             ) String message) {
 
         if (!state.isLoggedIn()) {
             System.out.println(
-                    "⚠️  Please login first. Type: login");
+                    "Not logged in. Type: login");
             return;
         }
 
@@ -123,39 +125,44 @@ public class ChatCommands {
         System.out.flush();
 
         ChatRequest request = new ChatRequest(
-                state.getActiveSessionId(), // uses stored ID
+                state.getActiveSessionId(),
                 message,
                 null);
 
         http.streamChat(
                 state.getAccessToken(),
                 request,
-                // onSession: store for next message
+                // onSession: store session ID
                 sessionId -> {
-                    if (state.getActiveSessionId() == null) {
+                    if (state.getActiveSessionId()
+                            == null) {
                         try {
                             state.setActiveSessionId(
-                                    UUID.fromString(sessionId));
+                                    UUID.fromString(
+                                            sessionId.trim()));
                             state.setActiveSessionTitle(
                                     message.length() > 30
-                                            ? message.substring(0,27) + "..."
+                                            ? message.substring(
+                                            0, 27) + "..."
                                             : message);
                         } catch (Exception ignored) {}
                     }
                 },
-                // onToken
+                // onToken: print immediately
                 token -> {
                     System.out.print(token);
                     System.out.flush();
                 },
-                // onDone
+                // onDone: newline
                 () -> {
                     System.out.println();
                     System.out.flush();
                 },
-                // onError
+                // onError: friendly message
                 error -> {
-                    System.out.println("\n❌ " + formatError(error));
+                    System.out.println(
+                            "\nError: "
+                                    + formatError(error));
                     System.out.flush();
                 }
         );
@@ -169,13 +176,12 @@ public class ChatCommands {
                 && msg.contains("Connection refused")) {
             return "Cannot connect to server.";
         }
-        return "Error: " + (msg != null
-                ? msg : "Unknown error");
+        return msg != null ? msg : "Unknown error";
     }
 
     private String padRight(String s, int n) {
-        if (s.length() > n)
-            return s.substring(0, n);
+        if (s == null) s = "";
+        if (s.length() > n) return s.substring(0, n);
         return String.format("%-" + n + "s", s);
     }
 }

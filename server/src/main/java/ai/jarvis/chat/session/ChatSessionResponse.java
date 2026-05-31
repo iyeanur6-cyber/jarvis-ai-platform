@@ -11,5 +11,4 @@ public record ChatSessionResponse(
         int totalTokens,
         Instant createdAt,
         Instant lastMessageAt
-) {
-}
+) {}

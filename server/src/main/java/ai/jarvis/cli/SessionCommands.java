@@ -45,42 +45,27 @@ public class SessionCommands {
             }
 
             StringBuilder sb = new StringBuilder();
-            sb.append(
-                    "┌────┬────────────────────────────"
-                            + "───┬──────────┐\n");
-            sb.append(
-                    "│ #  │ Title                      "
-                            + "   │ Messages │\n");
-            sb.append(
-                    "├────┼────────────────────────────"
-                            + "───┼──────────┤\n");
+            sb.append("\n+----+-------------------------------+----------+\n");
+            sb.append(  "| #  | Title                         | Messages |\n");
+            sb.append(  "+----+-------------------------------+----------+\n");
 
             int i = 1;
             for (var session : sessions) {
-                String title =
-                        session.get("title") != null
-                                ? session.get("title").toString()
-                                : "Untitled";
-                if (title.length() > 31) {
-                    title = title.substring(0, 28)
-                            + "...";
+                String title = session.get("title") != null
+                        ? session.get("title").toString()
+                        : "Untitled";
+                if (title.length() > 29) {
+                    title = title.substring(0, 26) + "...";
                 }
-                int msgCount =
-                        session.get("messageCount")
-                                != null
-                                ? ((Number) session
-                                .get("messageCount"))
-                                .intValue()
-                                : 0;
+                int msgCount = session.get("messageCount") != null
+                        ? ((Number) session.get("messageCount"))
+                        .intValue()
+                        : 0;
                 sb.append(String.format(
-                        "│ %-2d │ %-31s │ %-8d │\n",
+                        "| %-2d | %-29s | %-8d |\n",
                         i++, title, msgCount));
             }
-
-            sb.append(
-                    "└────┴────────────────────────────"
-                            + "───┴──────────┘");
-
+            sb.append("+----+-------------------------------+----------+");
             return sb.toString();
 
         } catch (Exception e) {

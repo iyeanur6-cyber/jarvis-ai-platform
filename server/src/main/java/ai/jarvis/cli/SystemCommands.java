@@ -45,18 +45,12 @@ public class SystemCommands {
                             health.get("components");
 
             StringBuilder sb = new StringBuilder();
-            sb.append(
-                    "┌──────────────────────────────────────┐\n");
-            sb.append(
-                    "│        Jarvis System Status          │\n");
-            sb.append(
-                    "├──────────────────────────────────────┤\n");
+            sb.append("\n+----------------------------------+\n");
+            sb.append(  "|     Jarvis System Status         |\n");
+            sb.append(  "+----------------------------------+\n");
 
             if (components != null) {
                 for (var entry : components.entrySet()) {
-
-                    // Skip internal Spring Boot probes
-                    // (liveness/readiness - Spring Shell artifact)
                     String key = entry.getKey();
                     if ("livenessState".equals(key)
                             || "readinessState".equals(key)
@@ -64,34 +58,27 @@ public class SystemCommands {
                             || "ping".equals(key)) {
                         continue;
                     }
-
                     @SuppressWarnings("unchecked")
                     Map<String, Object> comp =
-                            (Map<String, Object>)
-                                    entry.getValue();
+                            (Map<String, Object>) entry.getValue();
                     String cs = (String) comp.get("status");
-                    String ce = "UP".equals(cs) ? "✅" : "❌";
-
+                    String ce = "UP".equals(cs) ? "[OK]" : "[!!]";
                     sb.append(String.format(
-                            "│  %-12s %s %-18s│\n",
+                            "| %-10s %s %-16s|\n",
                             capitalize(key), ce, cs));
                 }
             }
 
-            sb.append(
-                    "├──────────────────────────────────────┤\n");
+            sb.append("+----------------------------------+\n");
             if (state.isLoggedIn()) {
                 sb.append(String.format(
-                        "│  User: %-30s│\n",
-                        state.getUsername()
-                                + " (" + state.getRole() + ")"));
+                        "| User: %-26s|\n",
+                        state.getUsername() + " (" + state.getRole() + ")"));
             } else {
                 sb.append(
-                        "│  User: Not logged in                │\n");
+                        "| User: Not logged in              |\n");
             }
-            sb.append(
-                    "└──────────────────────────────────────┘");
-
+            sb.append("+----------------------------------+");
             return sb.toString();
 
         } catch (Exception e) {
@@ -101,18 +88,19 @@ public class SystemCommands {
     }
 
     @Command(
-            name = "version",
-            description = "Show version information"
+            name = "jarvis-version",
+            description = "Show Jarvis version information"
     )
-    public String version() {
-        return """
-                Jarvis AI Platform v0.1.0-SNAPSHOT
-                Spring Boot:   4.0.6
-                Spring AI:     2.0.0-M8
-                Spring Shell:  4.0.2
-                Java:          21
-                GitHub: github.com/sujankim/jarvis-ai-platform
-                """;
+    public String jarvisVersion() {
+        return "\n" +
+                "Jarvis AI Platform\n" +
+                "------------------\n" +
+                "Version:       0.1.0-SNAPSHOT\n" +
+                "Spring Boot:   4.0.6\n" +
+                "Spring AI:     2.0.0-M8\n" +
+                "Spring Shell:  4.0.2\n" +
+                "Java:          21\n" +
+                "GitHub:        github.com/sujankim/jarvis-ai-platform\n";
     }
 
     @Command(

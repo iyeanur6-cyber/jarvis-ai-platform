@@ -105,21 +105,12 @@ public class AuthCommands {
             return "Not logged in. Type: login";
         }
 
-        return """
-                ┌─────────────────────────────┐
-                │  Current User               │
-                ├─────────────────────────────┤
-                │  Username: %s│
-                │  Role:     %s│
-                │  ID:       %s│
-                └─────────────────────────────┘
-                """.formatted(
-                padRight(state.getUsername(), 18),
-                padRight(state.getRole(), 18),
-                padRight(state.getUserId()
-                        .toString()
-                        .substring(0, 8) + "...", 18)
-        );
+        return "\nCurrent User\n"
+                + "--------------------------\n"
+                + "Username: " + state.getUsername() + "\n"
+                + "Role:     " + state.getRole() + "\n"
+                + "ID:       " + state.getUserId()
+                .toString().substring(0, 8) + "...\n";
     }
 
     // ── Helpers ───────────────────────────────────

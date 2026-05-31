@@ -3,35 +3,39 @@ package ai.jarvis.cli;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
 public class JarvisBanner {
 
-    private boolean displayed = false;
+    // Static so it survives DevTools restarts
+    private static volatile boolean displayed = false;
 
     @EventListener(ApplicationReadyEvent.class)
-    @Order(1) // run first
     public void displayBanner() {
-        if (displayed) return; // only show once
+        // Only show once per JVM process
+        if (displayed) return;
         displayed = true;
 
-        System.out.println("""
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException ignored) {}
 
-                ╔══════════════════════════════════════════════╗
-                ║                                              ║
-                ║       JARVIS AI PLATFORM v0.1.0             ║
-                ║                                              ║
-                ║   Local AI  Spring Boot 4  Java 21          ║
-                ║                                              ║
-                ╠══════════════════════════════════════════════╣
-                ║  help     all commands                       ║
-                ║  login    authenticate                       ║
-                ║  chat     talk to Jarvis                     ║
-                ║  status   system health                      ║
-                ╚══════════════════════════════════════════════╝
-                """);
+        System.out.println(
+                "\n" +
+                        "+==============================================+\n" +
+                        "|                                            |\n" +
+                        "|       JARVIS AI PLATFORM v0.1.0            |\n" +
+                        "|                                            |\n" +
+                        "|  Local AI | Spring Boot 4 | Java 21        |\n" +
+                        "|                                            |\n" +
+                        "+--------------------------------------------+\n" +
+                        "|  help      - all commands                  |\n" +
+                        "|  login     - authenticate                  |\n" +
+                        "|  chat      - talk to Jarvis                |\n" +
+                        "|  status    - system health                 |\n" +
+                        "+============================================+\n"
+        );
     }
 }
