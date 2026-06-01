@@ -32,7 +32,7 @@ public record ChatSession(
         int messageCount,
 
         @Column("total_tokens")
-        int totalToken,
+        int totalTokens,
 
         @CreatedDate
         @Column("created_at")
@@ -72,7 +72,7 @@ public record ChatSession(
         return new ChatSession(
                 id, userId, newTitle, status,
                 providerId, systemPrompt,
-                messageCount, totalToken,
+                messageCount, totalTokens,
                 createdAt, updatedAt, lastMessageAt
         );
     }
@@ -84,7 +84,7 @@ public record ChatSession(
                 id, userId, title, status,
                 providerId, systemPrompt,
                 messageCount + 1,
-                totalToken + tokenAdded,
+                totalTokens + tokenAdded,
                 createdAt, Instant.now(), Instant.now()
         );
     }

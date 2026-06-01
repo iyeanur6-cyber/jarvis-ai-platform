@@ -2,18 +2,20 @@ package ai.jarvis.ai.orchestrator;
 
 import ai.jarvis.ai.prompt.PromptAssembler;
 import ai.jarvis.ai.prompt.WorkingMemoryBuilder;
+import ai.jarvis.ai.provider.AiProvider;
+import ai.jarvis.ai.provider.ProviderRouter;
 import ai.jarvis.chat.message.Message;
 import ai.jarvis.chat.message.MessageRepository;
 import ai.jarvis.chat.session.ChatSessionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -23,39 +25,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiredArgsConstructor
 public class AiOrchestrator {
 
-    private final ChatClient.Builder chatClientBuilder;
+    private final ProviderRouter providerRouter;
     private final MessageRepository messageRepository;
     private final ChatSessionRepository sessionRepository;
     private final R2dbcEntityTemplate r2dbcEntityTemplate;
     private final PromptAssembler promptAssembler;
     private final WorkingMemoryBuilder workingMemoryBuilder;
 
-    /**
-     * The main chat method.
-     * Orchestrates: save → load context → assemble prompt
-     * → stream AI → save response
-     *
-     * Returns Flux<String> of tokens for SSE streaming.
-     */
     public Flux<String> chat(OrchestratorRequest request) {
 
         long startTime = System.currentTimeMillis();
 
-        // Build ChatClient for this request
-        ChatClient chatClient = chatClientBuilder.build();
-
-        // Step 1: Save user message to DB immediately
-        // (even if AI fails, user message is preserved)
         Message userMsg = Message.userMessage(
                 UUID.randomUUID(),
                 request.sessionId(),
                 request.message()
         );
-
-        // Step 2: Load conversation history
-        // Step 3: Assemble prompt
-        // Step 4: Stream AI response
-        // Step 5: Save assistant message after stream completes
 
         return r2dbcEntityTemplate
                 .insert(userMsg)
@@ -64,91 +49,101 @@ public class AiOrchestrator {
                                 request.sessionId())
                         .collectList()
                 )
-                .flatMapMany(history -> {
+                .flatMap(history ->
+                        // Route to best provider first
+                        providerRouter.route()
+                                .map(provider ->
+                                        new ProviderAndHistory(
+                                                provider, history))
+                )
+                .flatMapMany(pah -> {
 
-                    // Build working memory string
+                    AiProvider provider = pah.provider();
+                    List<Message> history = pah.history();
+
                     String workingMemory =
                             workingMemoryBuilder.build(
                                     request.username(),
                                     request.role(),
-                                    request.sessionId().toString(),
-                                    "llama3.1:8b"
+                                    request.sessionId()
+                                            .toString(),
+                                    provider.getModelName()
                             );
 
-                    // Assemble the full prompt
-                    // Exclude the last message from history
-                    // (it's the one we just saved = current msg)
                     List<Message> historyWithoutCurrent =
                             history.subList(
                                     0,
-                                    Math.max(0, history.size() - 1)
+                                    Math.max(
+                                            0,
+                                            history.size() - 1)
                             );
 
-                    Prompt prompt = promptAssembler.assemble(
-                            request.message(),
-                            workingMemory,
-                            historyWithoutCurrent,
-                            request.username()
-                    );
+                    Prompt prompt = promptAssembler
+                            .assemble(
+                                    request.message(),
+                                    workingMemory,
+                                    historyWithoutCurrent,
+                                    request.username()
+                            );
 
-                    // Accumulate response for saving
                     StringBuilder responseBuilder =
                             new StringBuilder();
                     AtomicInteger tokenCount =
                             new AtomicInteger(0);
 
                     log.info(
-                            "AI request: user={} session={} "
-                                    + "historyMessages={}",
+                            "AI request: user={} "
+                                    + "session={} provider={} "
+                                    + "model={} history={}",
                             request.username(),
                             request.sessionId(),
+                            provider.getName(),
+                            provider.getModelName(),
                             historyWithoutCurrent.size()
                     );
 
-                    // Stream from Ollama
-                    return chatClient
-                            .prompt(prompt)
-                            .stream()
-                            .content()
-                            .filter(token -> token != null
-                                    && !token.isEmpty())
+                    return provider.streamChat(prompt)
                             .doOnNext(token -> {
-                                responseBuilder.append(token);
-                                tokenCount.incrementAndGet();
+                                responseBuilder
+                                        .append(token);
+                                tokenCount
+                                        .incrementAndGet();
                             })
                             .doOnComplete(() -> {
                                 long duration =
                                         System.currentTimeMillis()
                                                 - startTime;
 
-                                String fullResponse =
-                                        responseBuilder.toString();
-
                                 log.info(
-                                        "AI response: user={} "
-                                                + "tokens≈{} duration={}ms",
+                                        "AI response: "
+                                                + "user={} tokens≈{} "
+                                                + "duration={}ms "
+                                                + "provider={}",
                                         request.username(),
                                         tokenCount.get(),
-                                        duration
+                                        duration,
+                                        provider.getName()
                                 );
 
-                                // Save assistant message
-                                // and update session stats
-                                // (async — doesn't block stream)
                                 saveAssistantMessage(
                                         request.sessionId(),
-                                        fullResponse,
+                                        responseBuilder
+                                                .toString(),
                                         tokenCount.get(),
-                                        (int) duration
+                                        (int) duration,
+                                        provider.getModelName()
                                 ).subscribe();
                             })
                             .doOnError(error -> {
                                 log.error(
-                                        "AI error: user={} error={}",
+                                        "AI error: "
+                                                + "user={} "
+                                                + "provider={} "
+                                                + "error={}",
                                         request.username(),
+                                        provider.getName(),
                                         error.getMessage()
                                 );
-                                // Save error message to DB
                                 saveErrorMessage(
                                         request.sessionId(),
                                         error.getMessage()
@@ -157,19 +152,20 @@ public class AiOrchestrator {
                 });
     }
 
-    // ── Private Helpers ───────────────────────────
+    // ── Private helpers ───────────────────────────
 
     private Mono<Void> saveAssistantMessage(
             UUID sessionId,
             String content,
             int tokens,
-            int durationMs) {
+            int durationMs,
+            String modelName) {
 
         Message assistantMsg = Message.assistantMessage(
                 UUID.randomUUID(),
                 sessionId,
                 content,
-                "llama3.1:8b",
+                modelName,
                 null,
                 tokens,
                 durationMs
@@ -186,15 +182,19 @@ public class AiOrchestrator {
     private Mono<Void> saveErrorMessage(
             UUID sessionId,
             String errorText) {
-
         Message errorMsg = Message.errorMessage(
                 UUID.randomUUID(),
                 sessionId,
                 errorText
         );
-
         return r2dbcEntityTemplate
                 .insert(errorMsg)
                 .then();
     }
+
+    // ── Private record ────────────────────────────
+
+    private record ProviderAndHistory(
+            AiProvider provider,
+            List<Message> history) {}
 }

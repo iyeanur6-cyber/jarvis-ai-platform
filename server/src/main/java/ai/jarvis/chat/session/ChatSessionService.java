@@ -82,7 +82,7 @@ public class ChatSessionService {
                             session.providerId(),
                             session.systemPrompt(),
                             session.messageCount(),
-                            session.totalToken(),
+                            session.totalTokens(),
                             session.createdAt(),
                             session.updatedAt(),
                             session.lastMessageAt()

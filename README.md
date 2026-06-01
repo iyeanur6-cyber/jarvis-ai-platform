@@ -1,342 +1,237 @@
-# 🤖 Jarvis AI Platform
+<div text-align="center">
 
-<div align="center">
+# 🤖 Jarvis AI Platform
 
 ### **A Modular, Local-First, Open-Source AI Assistant Platform**
 
-Built with **Java 21**, **Spring Boot 4**, and **Spring AI 2**
-
----
+Built with **Java 21**, **Spring Boot 4**, and **Spring AI 2.0**
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://adoptium.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-green.svg)](https://spring.io/projects/spring-boot)
-[![Spring AI](https://img.shields.io/badge/Spring%20AI-2.0-brightgreen.svg)](https://spring.io/projects/spring-ai)
+[![Spring AI](https://img.shields.io/badge/Spring%20AI-2.0.0--M8-brightgreen.svg)](https://spring.io/projects/spring-ai)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
-[![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg)](https://www.docker.com/)
-[![Open Source](https://img.shields.io/badge/Open%20Source-Yes-success.svg)](#-contributing)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/sujankim/jarvis-ai-platform/releases)
 
 </div>
 
 ---
 
-# 📖 Overview
+## What Is Jarvis?
 
-Jarvis is not just another AI chatbot.
+Jarvis is not just a chatbot. It is a **modular AI orchestration platform**
+that runs entirely on your own machine.
 
-It is a **modular AI orchestration platform** designed to run entirely on your own machine with complete privacy and full ownership of your data.
+**Your AI. Your Data. Your Machine.**
 
-Jarvis combines:
+### Key Differences from ChatGPT
 
-* 🧠 AI reasoning
-* 🗂️ Memory systems
-* 🔌 Tool execution
-* 🤖 Autonomous agents
-* 📄 Document understanding
-* 🎙️ Voice interaction
-
-into one extensible local-first platform.
+* Your conversations never leave your computer
+* Completely free (runs on Ollama locally)
+* Self-hosted — you own everything
 
 ---
 
-# ✨ Core Philosophy
+## What Works in v0.1.0
 
-| Principle               | Description                         |
-| ----------------------- | ----------------------------------- |
-| 🔒 Privacy First        | Your data never leaves your machine |
-| 🧩 Modular Architecture | Components can evolve independently |
-| ⚡ Reactive by Default   | Non-blocking streaming architecture |
-| 🔌 Provider Agnostic    | Swap Ollama, Gemini, OpenAI easily  |
-| 🏠 Self Hosted          | No subscriptions or vendor lock-in  |
-| 🌍 Open Source          | Community-driven development        |
-
----
-
-# 🚀 Features
-
-| Module             | Description                  | Status         |
-| ------------------ | ---------------------------- | -------------- |
-| AI Chat Engine     | Streaming conversational AI  | 🔨 In Progress |
-| CLI Interface      | Terminal-first interaction   | 🔨 In Progress |
-| REST API           | External integrations        | 🔨 In Progress |
-| Authentication     | JWT-based security           | 🔨 In Progress |
-| Memory System      | Persistent contextual memory | 📋 Planned     |
-| RAG Engine         | Chat with documents          | 📋 Planned     |
-| Tool Engine        | AI actions & automation      | 📋 Planned     |
-| Voice Assistant    | Speech-to-text + TTS         | 📋 Planned     |
-| Multi-Agent System | Autonomous AI agents         | 📋 Planned     |
-| Angular Web UI     | Modern frontend dashboard    | 📋 Planned     |
-| Plugin SDK         | Community extensions         | 📋 Planned     |
+| Feature                          | Status    |
+| -------------------------------- | --------- |
+| AI chat via CLI (streaming)      | ✅ Working |
+| JWT authentication (Argon2id)    | ✅ Working |
+| Session management + persistence | ✅ Working |
+| PostgreSQL (all messages saved)  | ✅ Working |
+| Ollama local AI (primary)        | ✅ Working |
+| Gemini cloud AI (fallback)       | ✅ Working |
+| Provider abstraction layer       | ✅ Working |
+| Working memory (date/time/user)  | ✅ Working |
+| Swagger UI (API testing)         | ✅ Working |
+| Health monitoring                | ✅ Working |
+| Spring Shell CLI commands        | ✅ Working |
 
 ---
 
-# 🏗️ System Architecture
+## Quick Start
 
-```text
-Spring Shell CLI / REST API (Swagger)
-              ↓
-    Spring Boot 4 — AI Engine
-              ↓
-   ┌──────────┴──────────┐
-   AI Orchestrator    Memory
-   (Spring AI 2.0)   (PostgreSQL)
-              ↓
-       Ollama (local)
-       llama3.1:8b
+### Prerequisites
 
+| Tool     | Install                |
+| -------- | ---------------------- |
+| Java 21+ | https://adoptium.net   |
+| Docker   | https://www.docker.com |
+| Ollama   | https://ollama.ai      |
 
-```
-
----
-
-# 🛠️ Tech Stack
-
-| Layer              | Technology               |
-| ------------------ | ------------------------ |
-| Language           | Java 21                  |
-| Framework          | Spring Boot 4.0.6        |
-| AI Framework       | Spring AI 2.0            |
-| API Layer          | Spring WebFlux           |
-| Security           | Spring Security 7 + JWT  |
-| Database           | PostgreSQL 16            |
-| Vector Storage     | pgvector                 |
-| Reactive Database  | R2DBC                    |
-| Database Migration | Flyway                   |
-| Local AI           | Ollama                   |
-| Cloud AI           | Google Gemini            |
-| CLI                | Spring Shell 4           |
-| Mapping            | MapStruct                |
-| Documentation      | SpringDoc OpenAPI        |
-| Testing            | JUnit 5 + Testcontainers |
-| Containerization   | Docker + Docker Compose  |
-
----
-
-# ⚡ Quick Start
-
-## Prerequisites
-
-| Tool     | Required |
-| -------- | -------- |
-| Java 21+ | ✅        |
-| Docker   | ✅        |
-| Ollama   | ✅        |
-
----
-
-## 1. Clone Repository
+### Step 1 — Clone
 
 ```bash
 git clone https://github.com/sujankim/jarvis-ai-platform.git
-
 cd jarvis-ai-platform
 ```
 
----
-
-## 2. Pull Local AI Model
+### Step 2 — Pull AI Model (One Time, ~5GB)
 
 ```bash
 ollama pull llama3.1:8b
 ```
 
----
-
-## 3. Configure Environment
+### Step 3 — Configure
 
 ```bash
 cp .env.example .env
+
+# Edit .env
+# Set JARVIS_JWT_SECRET (minimum 32 characters)
 ```
 
-Update your secrets inside `.env`.
-
-Example:
-
-```env
-JARVIS_JWT_SECRET=your-secret-key
-```
-
----
-
-## 4. Start Infrastructure
+### Step 4 — Start Database
 
 ```bash
-docker compose up -d
+docker-compose up -d
 ```
 
----
-
-## 5. Run Backend Server
+### Step 5 — Run Jarvis
 
 ```bash
 cd server
-
 ./mvnw spring-boot:run
 ```
 
----
+### Step 6 — Use Jarvis
 
-## 6. Start Using Jarvis
+```text
++==============================================+
+|        JARVIS AI PLATFORM v0.1.0             |
++==============================================+
 
-```bash
-jarvis:> login
+$> login
 
-jarvis:> chat
+Username: dravin
+Password:
 
-You: Hello Jarvis
+Welcome back, Dravin! (ADMIN)
 
-Jarvis: Hello! I'm your local AI assistant.
+$> chat
+
+You: Hello Jarvis!
+Jarvis: Hello Dravin! How can I help you today?
+
+You: What day is it?
+Jarvis: Today is Monday, June 1st, 2026.
+
+You: exit
+
+$> sessions
+
++----+---------------------------+----------+
+| #  | Title                     | Messages |
++----+---------------------------+----------+
+| 1  | Hello Jarvis!             | 4        |
++----+---------------------------+----------+
 ```
 
 ---
 
-# 🔌 AI Provider Support
+## CLI Commands
 
-Jarvis is designed with a provider abstraction layer.
-
-Supported providers:
-
-| Provider         | Status     |
-| ---------------- | ---------- |
-| Ollama           | ✅          |
-| Google Gemini    | 🔨         |
-| OpenAI           | 📋 Planned |
-| Anthropic Claude | 📋 Planned |
-| LM Studio        | 📋 Planned |
-
-Switch providers using configuration only.
-
----
-
-# 🧠 Long-Term Vision
-
-Jarvis aims to become a complete personal AI operating system:
-
-* Personal memory
-* Autonomous workflows
-* AI-powered productivity
-* Local reasoning engine
-* Multi-agent collaboration
-* Voice-controlled assistant
-* Developer automation
-* Knowledge management system
-
----
-
-# 📍 Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for detailed milestones and development plans.
-
----
-
-# 📸 Screenshots
-
-> Screenshots and demos will be added as development progresses.
-
-Future previews:
-
-* Angular dashboard
-* CLI streaming chat
-* Voice assistant
-* Document RAG system
-* Agent workflows
-
----
-
-# 🧪 Development
-
-## Run Tests
-
-```bash
-./mvnw test
-```
-
-## Run With Docker
-
-```bash
-docker compose up --build
+```text
+login           Authenticate
+logout          Sign out
+whoami          Show current user
+chat            Interactive streaming chat
+ask -m "..."    Single question
+sessions        List conversations
+new-session     Start fresh session
+status          System health
+doctor          Full diagnostics
+jarvis-version  Version info
+help            All commands
 ```
 
 ---
 
-# 🤝 Contributing
+## Architecture
 
-Contributions are welcome from everyone.
-
-## Ways to Contribute
-
-* 🐛 Report bugs
-* 💡 Suggest features
-* 📖 Improve documentation
-* 🔧 Submit pull requests
-* ⭐ Star the repository
-
----
-
-## Development Workflow
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit changes
-4. Push your branch
-5. Open a Pull Request
+```text
+Spring Shell CLI / REST API (Swagger)
+              |
+    Spring Boot 4 AI Engine
+              |
+    +----+----+----+
+    |              |
+OllamaProvider  GeminiProvider
+(primary)       (fallback)
+    |
+llama3.1:8b
+(your machine)
+              |
+         PostgreSQL
+    (sessions + messages)
+```
 
 ---
 
-## Good First Issues
+## Tech Stack
 
-Look for labels:
-
-* `good first issue`
-* `help wanted`
-* `documentation`
-
-Perfect for new contributors.
-
----
-
-# 🔒 Privacy
-
-Jarvis follows a strict privacy-first philosophy.
-
-## By Default:
-
-* No telemetry
-* No tracking
-* No analytics
-* No cloud dependency
-* No data collection
-
-Your AI runs on your machine.
-
-Your conversations stay yours.
+| Layer      | Technology               |
+| ---------- | ------------------------ |
+| Language   | Java 21 (LTS)            |
+| Framework  | Spring Boot 4.0.6        |
+| AI         | Spring AI 2.0.0-M8       |
+| Web        | Spring WebFlux           |
+| Security   | Spring Security 7 + JWT  |
+| Password   | Argon2id                 |
+| Database   | PostgreSQL 16            |
+| DB Access  | R2DBC (Reactive)         |
+| Migrations | Flyway                   |
+| Local AI   | Ollama (llama3.1:8b)     |
+| Cloud AI   | Google Gemini (Fallback) |
+| CLI        | Spring Shell 4.0         |
+| Mapping    | MapStruct 1.6            |
+| API Docs   | SpringDoc OpenAPI 3      |
 
 ---
 
-# 📄 License
+## Roadmap
 
-Licensed under the Apache License 2.0.
+See **[ROADMAP.md](ROADMAP.md)** for the complete plan.
 
-See [LICENSE](LICENSE) for more information.
-
----
-
-# 🌟 Support The Project
-
-If you find Jarvis useful:
-
-* ⭐ Star the repository
-* 🍴 Fork the project
-* 🧠 Contribute ideas
-* 🔧 Submit improvements
+| Phase  | Feature                | Status     |
+| ------ | ---------------------- | ---------- |
+| v0.1.0 | AI Core + CLI + JWT    | ✅ Released |
+| v0.2.0 | Memory System          | 📋 Next    |
+| v0.3.0 | RAG Engine             | 📋 Planned |
+| v0.4.0 | Tool Engine            | 📋 Planned |
+| v0.5.0 | Voice Assistant        | 📋 Planned |
+| v1.0.0 | Web UI + Full Platform | 📋 Planned |
 
 ---
 
-<div align="center">
+## Contributing
 
-## Built by Sujan and the Open Source Community
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for how to help.
 
-### Your AI. Your Data. Your Machine.
+Good first issues are labeled on GitHub.
 
-### ⭐ Star this repo if Jarvis helps you!
+---
+
+## Privacy
+
+* No telemetry by default
+* No cloud dependency (Ollama runs locally)
+* Your conversations never leave your machine
+* Self-hosted — we run nothing on our end
+
+---
+
+## License
+
+Apache License 2.0 — see **[LICENSE](LICENSE)**
+
+---
+
+<div text-align="center">
+
+Built by Sujan and the Open Source Community
+
+⭐ Star this repo if Jarvis helps you!
+
 </div>

@@ -74,7 +74,7 @@ spring:
 # JARVIS CUSTOM CONFIGURATION
 # ═══════════════════════════════════════════════════
 jarvis:
-  version: "@project.version@"
+  version: "0.1.0"
 
   security:
     jwt:
