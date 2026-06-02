@@ -63,6 +63,8 @@ spring:
   # ── Spring Shell ──────────────────────────────────
   main:
     web-application-type: reactive
+    banner-mode: off    # ← Remove Spring's own banner
+    log-startup-info: false  # ← Remove startup info logs
   shell:
     interactive:
       enabled: true

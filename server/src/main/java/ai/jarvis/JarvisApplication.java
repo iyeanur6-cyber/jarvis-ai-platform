@@ -15,7 +15,6 @@ public class JarvisApplication {
     public static void main(String[] args) {
 
         // Force UTF-8 for Windows terminal
-        // This makes emojis display correctly
         try {
             System.setOut(new PrintStream(
                     System.out, true,
