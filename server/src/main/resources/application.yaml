@@ -68,6 +68,8 @@ spring:
   shell:
     interactive:
       enabled: true
+    terminal:
+      force-interactive: true
     history:
       enabled: true
       name: .jarvis-history

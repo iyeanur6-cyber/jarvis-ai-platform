@@ -1,23 +1,38 @@
 package ai.jarvis.cli;
 
 import ai.jarvis.chat.streaming.ChatRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jline.reader.EndOfFileException;
+import org.jline.reader.LineReader;
+import org.jline.reader.UserInterruptException;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.shell.core.command.annotation.Command;
 import org.springframework.shell.core.command.annotation.Option;
 import org.springframework.stereotype.Component;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.util.UUID;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ChatCommands {
 
     private final CliStateManager state;
     private final CliHttpClient http;
+    private final LineReader lineReader;
+
+    /**
+     * Single constructor.
+     * Spring Framework 7 auto-detects it.
+     * @Lazy breaks the circular dependency.
+     */
+    public ChatCommands(
+            CliStateManager state,
+            CliHttpClient http,
+            @Lazy LineReader lineReader) {
+        this.state = state;
+        this.http = http;
+        this.lineReader = lineReader;
+    }
 
     @Command(
             name = "chat",
@@ -38,8 +53,7 @@ public class ChatCommands {
 
         if (!http.isServerReachable()) {
             System.out.println(
-                    "Cannot connect to server. "
-                            + "Is Jarvis running?");
+                    "Cannot connect to server.");
             return;
         }
 
@@ -61,16 +75,12 @@ public class ChatCommands {
                 "|  Type 'exit' to return to menu       |");
         System.out.println(
                 "+--------------------------------------+");
-
-        BufferedReader reader = new BufferedReader(
-                new InputStreamReader(System.in));
+        System.out.println();
 
         while (true) {
             try {
-                System.out.print("\nYou: ");
-                System.out.flush();
-
-                String input = reader.readLine();
+                String input = lineReader.readLine(
+                        "You: ");
 
                 if (input == null
                         || input.trim()
@@ -88,6 +98,14 @@ public class ChatCommands {
 
                 sendAndStream(input.trim());
 
+            } catch (UserInterruptException e) {
+                System.out.println(
+                        "\nChat interrupted. Goodbye!");
+                break;
+            } catch (EndOfFileException e) {
+                System.out.println(
+                        "\nEnding chat. Goodbye!");
+                break;
             } catch (Exception e) {
                 System.out.println(
                         "Error: " + e.getMessage());
@@ -97,14 +115,14 @@ public class ChatCommands {
 
     @Command(
             name = "ask",
-            description = "Ask Jarvis a quick question. "
-                    + "Usage: ask --message \"Hello Jarvis\""
+            description = "Ask a single question. "
+                    + "Usage: ask --message \"Hello\""
     )
     public void ask(
             @Option(
                     longName = "message",
                     shortName = 'm',
-                    description = "Your question for Jarvis",
+                    description = "Your question",
                     required = true
             ) String message) {
 
@@ -118,21 +136,18 @@ public class ChatCommands {
         System.out.println();
     }
 
-    // ── Stream via CliHttpClient ──────────────────
-
     private void sendAndStream(String message) {
+        System.out.println();
         System.out.print("Jarvis: ");
         System.out.flush();
 
         ChatRequest request = new ChatRequest(
                 state.getActiveSessionId(),
-                message,
-                null);
+                message, null);
 
         http.streamChat(
                 state.getAccessToken(),
                 request,
-                // onSession: store session ID
                 sessionId -> {
                     if (state.getActiveSessionId()
                             == null) {
@@ -148,17 +163,15 @@ public class ChatCommands {
                         } catch (Exception ignored) {}
                     }
                 },
-                // onToken: print immediately
                 token -> {
                     System.out.print(token);
                     System.out.flush();
                 },
-                // onDone: newline
                 () -> {
+                    System.out.println();
                     System.out.println();
                     System.out.flush();
                 },
-                // onError: friendly message
                 error -> {
                     System.out.println(
                             "\nError: "

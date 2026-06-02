@@ -1,8 +1,10 @@
-<div text-align="center">
+<div align="center">
 
-# 🤖 Jarvis AI Platform
+<img src="docs/Jarvis-Logo.png" alt="Jarvis AI Platform Logo" width="180"/>
 
-### **A Modular, Local-First, Open-Source AI Assistant Platform**
+# Jarvis AI Platform
+
+### A Modular, Local-First, Open-Source AI Assistant Platform
 
 Built with **Java 21**, **Spring Boot 4**, and **Spring AI 2.0**
 
@@ -14,6 +16,12 @@ Built with **Java 21**, **Spring Boot 4**, and **Spring AI 2.0**
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/sujankim/jarvis-ai-platform/releases)
 
 </div>
+
+---
+
+<p align="center">
+  <img src="docs/social-banner.png" alt="Jarvis AI Platform Banner">
+</p>
 
 ---
 
@@ -228,7 +236,7 @@ Apache License 2.0 — see **[LICENSE](LICENSE)**
 
 ---
 
-<div text-align="center">
+<div align="center">
 
 Built by Sujan and the Open Source Community
 

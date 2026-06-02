@@ -69,6 +69,7 @@
         <!-- Explicit versions for Flyway plugin classpath -->
         <postgresql.version>42.7.5</postgresql.version>
         <flyway.version>11.14.1</flyway.version>
+        <spring-shell.version>4.0.2</spring-shell.version>
     </properties>
 
     <repositories>
@@ -260,6 +261,12 @@
             <version>${spring-shell.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.shell</groupId>
+            <artifactId>spring-shell-jline</artifactId>
+            <version>${spring-shell.version}</version>
+        </dependency>
+
         <!-- ========================= -->
         <!-- MapStruct                 -->
         <!-- ========================= -->
@@ -366,6 +373,10 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                    <jvmArguments>
+                        -Djline.terminal=windows
+                        -Djline.windows.conin.force=true
+                    </jvmArguments>
                 </configuration>
             </plugin>
 

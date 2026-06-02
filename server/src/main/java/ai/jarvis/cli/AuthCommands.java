@@ -2,24 +2,36 @@ package ai.jarvis.cli;
 
 import ai.jarvis.security.auth.request.LoginRequest;
 import ai.jarvis.security.auth.response.TokenResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jline.reader.LineReader;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.shell.core.command.annotation.Command;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AuthCommands {
 
     private final CliStateManager state;
-    private final WebClient.Builder webClientBuilder;
+    private final CliHttpClient http;
+    private final LineReader lineReader;
 
-    private WebClient client() {
-        return webClientBuilder
-                .baseUrl("http://localhost:8080")
-                .build();
+    /**
+     * Single constructor — Spring Framework 7
+     * automatically uses this for DI.
+     *
+     * @Lazy on LineReader breaks the circular
+     * dependency with CommandRegistry:
+     * authCommands → lineReader → commandCompleter
+     * → commandRegistry → authCommands
+     */
+    public AuthCommands(
+            CliStateManager state,
+            CliHttpClient http,
+            @Lazy LineReader lineReader) {
+        this.state = state;
+        this.http = http;
+        this.lineReader = lineReader;
     }
 
     @Command(
@@ -28,35 +40,29 @@ public class AuthCommands {
     )
     public String login() {
 
-        if(state.isLoggedIn()) {
-            return "⚠ Already logged in as: "
+        if (state.isLoggedIn()) {
+            return "Already logged in as: "
                     + state.getUsername()
-                    + "\nType 'logout' first.";
+                    + ". Type 'logout' first.";
         }
 
-        System.out.print("Username: ");
-        System.out.flush();
-        String username = readLine();
-
-        System.out.print("Password: ");
-        System.out.flush();
-        String password;
-        if(System.console() != null) {
-            password = new String(
-                    System.console().readPassword());
-        }else{
-            password = readLine();
+        if (!http.isServerReachable()) {
+            return "Cannot reach server. "
+                    + "Is Jarvis running?";
         }
 
-        try{
-            TokenResponse response = client()
-                    .post()
-                    .uri("/api/v1/auth/login")
-                    .bodyValue(new LoginRequest(
-                            username, password))
-                    .retrieve()
-                    .bodyToMono(TokenResponse.class)
-                    .block();
+        String username = lineReader.readLine(
+                "Username: ");
+        String password = lineReader.readLine(
+                "Password: ", '*');
+
+        try {
+            TokenResponse response = http.post(
+                    "/api/v1/auth/login",
+                    new LoginRequest(
+                            username.trim(),
+                            password.trim()),
+                    TokenResponse.class);
 
             if (response != null
                     && response.user() != null) {
@@ -69,16 +75,16 @@ public class AuthCommands {
                 state.setUserId(
                         response.user().userId());
 
-                return "✅ Welcome back, "
+                return "Welcome back, "
                         + response.user().displayName()
                         + "! ("
                         + response.user().role().name()
                         + ")";
             }
-            return "❌ Login failed";
+            return "Login failed";
 
         } catch (Exception e) {
-            return "❌ Login failed: "
+            return "Login failed: "
                     + extractMessage(e);
         }
     }
@@ -93,7 +99,7 @@ public class AuthCommands {
         }
         String name = state.getUsername();
         state.clear();
-        return "✅ Goodbye, " + name + "!";
+        return "Goodbye, " + name + "!";
     }
 
     @Command(
@@ -104,25 +110,15 @@ public class AuthCommands {
         if (!state.isLoggedIn()) {
             return "Not logged in. Type: login";
         }
-
         return "\nCurrent User\n"
                 + "--------------------------\n"
-                + "Username: " + state.getUsername() + "\n"
-                + "Role:     " + state.getRole() + "\n"
-                + "ID:       " + state.getUserId()
-                .toString().substring(0, 8) + "...\n";
-    }
-
-    // ── Helpers ───────────────────────────────────
-
-    private String readLine() {
-        try {
-            return new java.io.BufferedReader(
-                    new java.io.InputStreamReader(System.in))
-                    .readLine();
-        } catch (Exception e) {
-            return "";
-        }
+                + "Username: "
+                + state.getUsername() + "\n"
+                + "Role:     "
+                + state.getRole() + "\n"
+                + "ID:       "
+                + state.getUserId().toString()
+                .substring(0, 8) + "...\n";
     }
 
     private String extractMessage(Exception e) {
@@ -132,13 +128,8 @@ public class AuthCommands {
         }
         if (msg != null
                 && msg.contains("Connection refused")) {
-            return "Cannot connect to server. "
-                    + "Is Jarvis running?";
+            return "Server not running on port 8080";
         }
         return msg != null ? msg : "Unknown error";
-    }
-
-    private String padRight(String s, int n) {
-        return String.format("%-" + n + "s", s);
     }
 }
