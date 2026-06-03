@@ -95,10 +95,10 @@ public class SystemCommands {
         return "\n" +
                 "Jarvis AI Platform\n" +
                 "------------------\n" +
-                "Version:       0.1.0-SNAPSHOT\n" +
+                "Version:       v0.1.0\n" +
                 "Spring Boot:   4.0.6\n" +
-                "Spring AI:     2.0.0-M8\n" +
-                "Spring Shell:  4.0.2\n" +
+                "Spring AI:     2.0\n" +
+                "Spring Shell:  4.0\n" +
                 "Java:          21\n" +
                 "GitHub:        github.com/sujankim/jarvis-ai-platform\n";
     }
