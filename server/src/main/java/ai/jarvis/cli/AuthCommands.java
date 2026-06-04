@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.shell.core.command.annotation.Command;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+
 @Slf4j
 @Component
 public class AuthCommands {
@@ -34,10 +36,8 @@ public class AuthCommands {
         this.lineReader = lineReader;
     }
 
-    @Command(
-            name = "login",
-            description = "Login to Jarvis"
-    )
+    @Command(name = "login",
+            description = "Login to Jarvis")
     public String login() {
 
         if (state.isLoggedIn()) {
@@ -47,45 +47,55 @@ public class AuthCommands {
         }
 
         if (!http.isServerReachable()) {
-            return "Cannot reach server. "
-                    + "Is Jarvis running?";
+            return "Cannot reach server. Is Jarvis running?";
         }
 
-        String username = lineReader.readLine(
-                "Username: ");
-        String password = lineReader.readLine(
-                "Password: ", '*');
+        String username = lineReader.readLine("Username: ");
+        String password = lineReader.readLine("Password: ", '*');
 
         try {
-            TokenResponse response = http.post(
+            Map<String, Object> response = http.postForMap(
                     "/api/v1/auth/login",
-                    new LoginRequest(
+                    new ai.jarvis.security.auth.request
+                            .LoginRequest(
                             username.trim(),
-                            password.trim()),
-                    TokenResponse.class);
+                            password.trim()));
 
-            if (response != null
-                    && response.user() != null) {
-                state.setAccessToken(
-                        response.accessToken());
-                state.setUsername(
-                        response.user().username());
-                state.setRole(
-                        response.user().role().name());
-                state.setUserId(
-                        response.user().userId());
-
-                return "Welcome back, "
-                        + response.user().displayName()
-                        + "! ("
-                        + response.user().role().name()
-                        + ")";
+            if (response == null) {
+                return "Login failed: null response";
             }
-            return "Login failed";
+
+            String accessToken = (String) response
+                    .get("accessToken");
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> user =
+                    (Map<String, Object>) response.get("user");
+
+            if (accessToken == null || user == null) {
+                return "Login failed: unexpected format\n"
+                        + "Full response: " + response;
+            }
+
+            state.setAccessToken(accessToken);
+            state.setUsername((String) user.get("username"));
+            state.setRole((String) user.get("role"));
+
+            String userId = (String) user.get("userId");
+            if (userId != null) {
+                state.setUserId(
+                        java.util.UUID.fromString(userId));
+            }
+
+            String displayName = (String) user.get("displayName");
+            if (displayName == null) displayName = state.getUsername();
+
+            return "Welcome back, " + displayName
+                    + "! (" + state.getRole() + ")";
 
         } catch (Exception e) {
-            return "Login failed: "
-                    + extractMessage(e);
+            return "Login exception: " + e.getClass().getSimpleName()
+                    + ": " + e.getMessage();
         }
     }
 

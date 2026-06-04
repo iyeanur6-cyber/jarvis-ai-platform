@@ -2,8 +2,11 @@ package ai.jarvis.cli;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -18,16 +21,12 @@ public class CliHttpClient {
         this.restClient = RestClient.builder()
                 .baseUrl(BASE_URL)
                 .defaultStatusHandler(
-                        // Handle ALL status codes ourselves
-                        // Don't throw exception on 4xx/5xx
                         HttpStatusCode::isError,
                         (request, response) -> {
-                            // Log but don't throw
                             log.debug(
                                     "HTTP {} from {}",
                                     response.getStatusCode(),
-                                    request.getURI()
-                            );
+                                    request.getURI());
                         }
                 )
                 .build();
@@ -58,7 +57,7 @@ public class CliHttpClient {
                 .body(responseType);
     }
 
-    // ── POST ──────────────────────────────────────
+    // ── POST (generic) ───────────────────────────
 
     public <T> T post(
             String uri,
@@ -67,6 +66,7 @@ public class CliHttpClient {
         return restClient
                 .post()
                 .uri(uri)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()
                 .body(responseType);
@@ -82,17 +82,33 @@ public class CliHttpClient {
                 .uri(uri)
                 .header("Authorization",
                         "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()
                 .body(responseType);
+    }
+
+    // ── POST returning raw Map ────────────────────
+    // Use this when record deserialization fails
+    // Jackson 3 + records can be tricky with RestClient
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> postForMap(
+            String uri,
+            Object body) {
+        return restClient
+                .post()
+                .uri(uri)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(Map.class);
     }
 
     // ── Health check ─────────────────────────────
 
     public boolean isServerReachable() {
         try {
-            // Just check we get ANY response
-            // Don't care if it's UP or OUT_OF_SERVICE
             getPublic("/actuator/health", String.class);
             return true;
         } catch (Exception e) {
@@ -111,15 +127,17 @@ public class CliHttpClient {
             java.util.function.Consumer<String> onError) {
 
         try {
-            var webClient = org.springframework.web.reactive
-                    .function.client.WebClient.builder()
+            var webClient = org.springframework.web
+                    .reactive.function.client
+                    .WebClient.builder()
                     .baseUrl(BASE_URL)
                     .build();
 
             webClient
                     .post()
                     .uri("/api/v1/chat/stream")
-                    .header("Authorization", "Bearer " + token)
+                    .header("Authorization",
+                            "Bearer " + token)
                     .contentType(
                             org.springframework.http.MediaType
                                     .APPLICATION_JSON)
@@ -135,12 +153,9 @@ public class CliHttpClient {
                                             .ServerSentEvent<String>>() {})
                     .doOnNext(event -> {
                         String eventType = event.event();
-
                         if ("session".equals(eventType)
                                 && event.data() != null) {
-                            // Signal session ID back via callback
                             onSession.accept(event.data().trim());
-
                         } else if ("token".equals(eventType)
                                 && event.data() != null) {
                             String tokenText =
@@ -148,7 +163,6 @@ public class CliHttpClient {
                             if (tokenText != null) {
                                 onToken.accept(tokenText);
                             }
-
                         } else if ("done".equals(eventType)) {
                             onDone.run();
                         }
@@ -162,27 +176,20 @@ public class CliHttpClient {
         }
     }
 
-    /**
-     * Parse {"t":"token text"} → "token text"
-     * Preserves spaces that SSE codec strips.
-     */
     private String parseJsonToken(String json) {
         try {
-            // Simple parse: {"t":" nice"}
-            // Find value between "t":" and last "
             int start = json.indexOf("\"t\":\"");
-            if (start == -1) return json; // fallback
-            start += 5; // skip "t":"
+            if (start == -1) return json;
+            start += 5;
             int end = json.lastIndexOf("\"");
             if (end <= start) return json;
             return json.substring(start, end)
-                    // Unescape JSON
                     .replace("\\n", "\n")
                     .replace("\\r", "\r")
                     .replace("\\\"", "\"")
                     .replace("\\\\", "\\");
         } catch (Exception e) {
-            return json; // fallback to raw
+            return json;
         }
     }
 }

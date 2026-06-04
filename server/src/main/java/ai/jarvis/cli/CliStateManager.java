@@ -21,6 +21,9 @@ public class CliStateManager {
     private String accessToken;
 
     @Getter @Setter
+    private String refreshToken;
+
+    @Getter @Setter
     private String username;
 
     @Getter @Setter

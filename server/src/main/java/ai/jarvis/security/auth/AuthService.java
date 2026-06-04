@@ -118,8 +118,6 @@ public class AuthService {
                     if (!passwordEncoder.matches(
                             request.password(),
                             user.passwordHash())) {
-                        log.warn("Failed login: username={}",
-                                request.username());
                         return Mono.error(
                                 new ResponseStatusException(
                                         HttpStatus.UNAUTHORIZED,
@@ -128,23 +126,27 @@ public class AuthService {
                         );
                     }
 
-                    log.info("User logged in: username={} role={}",
-                            user.username(), user.role());
+                    try {
+                        String accessToken =
+                                jwtService.generateAccessToken(user);
+                        String refreshToken =
+                                jwtService.generateRefreshToken(user);
+                        TokenResponse.UserInfo userInfo =
+                                userMapper.toUserInfo(user);
+                        TokenResponse response = TokenResponse.of(
+                                accessToken,
+                                refreshToken,
+                                jwtService.getAccessTokenExpirySeconds(),
+                                userInfo
+                        );
+                        return Mono.just(response);
 
-                    String accessToken =
-                            jwtService.generateAccessToken(user);
-                    String refreshToken =
-                            jwtService.generateRefreshToken(user);
-
-                    TokenResponse.UserInfo userInfo =
-                            userMapper.toUserInfo(user);
-
-                    return Mono.just(TokenResponse.of(
-                            accessToken,
-                            refreshToken,
-                            jwtService.getAccessTokenExpirySeconds(),
-                            userInfo
-                    ));
+                    } catch (Exception e) {
+                        log.error(
+                                "Login token build failed: {}",
+                                e.getMessage(), e);
+                        return Mono.error(e);
+                    }
                 });
     }
 }
