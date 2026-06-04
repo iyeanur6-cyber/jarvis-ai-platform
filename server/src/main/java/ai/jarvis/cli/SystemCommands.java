@@ -22,11 +22,9 @@ public class SystemCommands {
     public String status() {
 
         if (!http.isServerReachable()) {
-            return """
-                ❌ Cannot connect to Jarvis server.
-                   Make sure it is running on port 8080.
-                   Run: ./mvnw spring-boot:run
-                """;
+            return "Cannot connect to Jarvis server.\n"
+                    + "Make sure it is running on port 8080.\n"
+                    + "Run: ./mvnw spring-boot:run";
         }
 
         try {
@@ -35,10 +33,9 @@ public class SystemCommands {
                     "/actuator/health", Map.class);
 
             if (health == null) {
-                return "❌ Health endpoint returned null";
+                return "Health endpoint returned null";
             }
 
-            // Overall status (ignore readinessState)
             @SuppressWarnings("unchecked")
             Map<String, Object> components =
                     (Map<String, Object>)
@@ -60,9 +57,11 @@ public class SystemCommands {
                     }
                     @SuppressWarnings("unchecked")
                     Map<String, Object> comp =
-                            (Map<String, Object>) entry.getValue();
+                            (Map<String, Object>)
+                                    entry.getValue();
                     String cs = (String) comp.get("status");
-                    String ce = "UP".equals(cs) ? "[OK]" : "[!!]";
+                    String ce = "UP".equals(cs)
+                            ? "[OK]" : "[!!]";
                     sb.append(String.format(
                             "| %-10s %s %-16s|\n",
                             capitalize(key), ce, cs));
@@ -73,7 +72,8 @@ public class SystemCommands {
             if (state.isLoggedIn()) {
                 sb.append(String.format(
                         "| User: %-26s|\n",
-                        state.getUsername() + " (" + state.getRole() + ")"));
+                        state.getUsername()
+                                + " (" + state.getRole() + ")"));
             } else {
                 sb.append(
                         "| User: Not logged in              |\n");
@@ -82,7 +82,7 @@ public class SystemCommands {
             return sb.toString();
 
         } catch (Exception e) {
-            return "❌ Error reading status: "
+            return "Error reading status: "
                     + e.getMessage();
         }
     }
@@ -92,15 +92,16 @@ public class SystemCommands {
             description = "Show Jarvis version information"
     )
     public String jarvisVersion() {
-        return "\n" +
-                "Jarvis AI Platform\n" +
-                "------------------\n" +
-                "Version:       v0.1.0\n" +
-                "Spring Boot:   4.0.6\n" +
-                "Spring AI:     2.0\n" +
-                "Spring Shell:  4.0\n" +
-                "Java:          21\n" +
-                "GitHub:        github.com/sujankim/jarvis-ai-platform\n";
+        return "\n"
+                + "Jarvis AI Platform\n"
+                + "------------------\n"
+                + "Version:       v0.1.0\n"
+                + "Spring Boot:   4.0.6\n"
+                + "Spring AI:     2.0\n"
+                + "Spring Shell:  4.0\n"
+                + "Java:          21\n"
+                + "GitHub:        "
+                + "github.com/sujankim/jarvis-ai-platform\n";
     }
 
     @Command(
@@ -116,8 +117,7 @@ public class SystemCommands {
             sb.append("[OK] Jarvis server:  Running\n");
         } else {
             sb.append("[!!] Jarvis server:  Not running\n");
-            sb.append(
-                    "     Fix: ./mvnw spring-boot:run\n");
+            sb.append("     Fix: ./mvnw spring-boot:run\n");
         }
 
         // Check Ollama
@@ -134,14 +134,13 @@ public class SystemCommands {
                             .GET()
                             .build();
             var resp = client.send(req,
-                    java.net.http.HttpResponse.BodyHandlers
-                            .ofString());
+                    java.net.http.HttpResponse
+                            .BodyHandlers.ofString());
             if (resp.statusCode() == 200) {
                 sb.append("[OK] Ollama:         Running\n");
             } else {
-                sb.append(
-                        "[!!] Ollama:         Unexpected "
-                                + resp.statusCode() + "\n");
+                sb.append("[!!] Ollama:         Unexpected "
+                        + resp.statusCode() + "\n");
             }
         } catch (Exception e) {
             sb.append("[!!] Ollama:         Not running\n");
@@ -160,29 +159,33 @@ public class SystemCommands {
         sb.append("\n");
         sb.append("USAGE TIPS:\n");
         sb.append(
-                "  jarvis:> login       - authenticate\n");
+                "  jarvis:> login    - authenticate\n");
         sb.append(
-                "  jarvis:> chat        - start chatting\n");
+                "  jarvis:> chat     - start chatting\n");
         sb.append(
-                "  jarvis:> session     - list sessions\n");
+                "  jarvis:> session  - list sessions\n");
         sb.append(
-                "  NOTE: type messages INSIDE 'chat' command\n");
+                "  NOTE: type messages INSIDE 'chat'\n");
 
         return sb.toString();
     }
 
-    @Command(name="about", description="Show info")
+    @Command(
+            name = "about",
+            description = "Show Jarvis platform information"
+    )
     public String about() {
-    return "\nJarvis AI Platform v0.1.0\n"
-            + "─────────────────────────\n"
-            + "Local-first AI assistant platform.\n\n"
-            + "Built with: Java 21 | Spring Boot 4.0.6\n"
-            + "            Spring AI 2.0 | Spring Shell 4.0\n\n"
-            + "GitHub:  github.com/sujankim/jarvis-ai-platform\n"
-            + "License: Apache-2.0\n\n"
-            + "Your AI. Your Data. Your Machine.\n";
-}
-
+        return "\nJarvis AI Platform v0.1.0\n"
+                + "-------------------------\n"
+                + "Local-first AI assistant platform.\n\n"
+                + "Built with:\n"
+                + "  Java 21        | Spring Boot 4.0.6\n"
+                + "  Spring AI 2.0  | Spring Shell 4.0\n\n"
+                + "GitHub:\n"
+                + "  github.com/sujankim/jarvis-ai-platform\n\n"
+                + "License: Apache-2.0\n\n"
+                + "Your AI. Your Data. Your Machine.\n";
+    }
 
     private String capitalize(String s) {
         if (s == null || s.isEmpty()) return s;
