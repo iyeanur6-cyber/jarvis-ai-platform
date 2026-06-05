@@ -14,7 +14,6 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,13 +21,20 @@ import java.util.UUID;
  * Caches session message history in Redis.
  *
  * ENCODING: JSON Lines (one JSON object per line).
- * Each line: {"r":"ROLE","i":"uuid","c":"content"}
+ * Each line: {"r":"ROLE","i":"uuid","c":"content",
+ *             "e":false,"t":1234567890}
  *
- * WHY JSON Lines instead of custom escaping:
+ * WHY JSON Lines:
  * - Jackson handles all special chars correctly
  * - No data corruption for code, JSON, Windows paths
  * - Safe round-trip for any message content
- * - Still simple to parse (one object per line)
+ *
+ * WHY we store error flag and createdAt:
+ * - PromptAssembler checks msg.error() to exclude
+ *   error messages from prompts
+ * - Hardcoding false causes inconsistency between
+ *   cache HIT and DB fallback behavior
+ * - createdAt needed for correct message ordering
  */
 @Slf4j
 @Service
@@ -59,7 +65,7 @@ public class SessionCacheService {
 
     /**
      * Get session history.
-     * Cache HIT → Redis (~1ms)
+     * Cache HIT  → Redis (~1ms)
      * Cache MISS → PostgreSQL last 20 rows + cache
      */
     public Mono<List<Message>> getSessionHistory(
@@ -129,13 +135,12 @@ public class SessionCacheService {
 
     /**
      * Load last MAX_MESSAGES from DB at query level.
-     * No in-memory slicing needed.
+     * SQL LIMIT prevents loading entire session history.
      */
     private Mono<List<Message>> loadFromDb(
             UUID sessionId) {
         log.debug("Cache MISS [{}] — DB query",
                 sessionId);
-        // LIMIT pushed to DB query
         return messageRepository
                 .findLastNBySessionId(
                         sessionId, MAX_MESSAGES)
@@ -164,7 +169,7 @@ public class SessionCacheService {
     /**
      * Serialize as JSON Lines.
      * Each line = one MessageDto JSON object.
-     * Jackson handles all special chars correctly.
+     * Includes: role, id, content, error, createdAt.
      */
     private String serialize(
             List<Message> messages) throws Exception {
@@ -172,12 +177,18 @@ public class SessionCacheService {
         for (Message msg : messages) {
             if (msg.role() == null) continue;
             if (msg.content() == null) continue;
+
             MessageDto dto = new MessageDto(
                     msg.role().name(),
                     msg.id().toString(),
-                    msg.content()
+                    msg.content(),
+                    msg.error(),             // ← preserved
+                    msg.createdAt() != null  // ← preserved
+                            ? msg.createdAt().toEpochMilli()
+                            : Instant.now().toEpochMilli()
             );
-            sb.append(objectMapper.writeValueAsString(dto))
+            sb.append(
+                            objectMapper.writeValueAsString(dto))
                     .append("\n");
         }
         return sb.toString();
@@ -185,7 +196,13 @@ public class SessionCacheService {
 
     /**
      * Deserialize JSON Lines back to Message list.
-     * Fix: logs session ID only, NOT message content.
+     *
+     * FIXED: restores error flag and createdAt.
+     * PromptAssembler uses msg.error() to exclude
+     * error messages — must be preserved correctly.
+     *
+     * PRIVACY: logs session ID + line number only.
+     * Never logs message content.
      */
     private List<Message> deserialize(
             String data, UUID sessionId) {
@@ -203,19 +220,36 @@ public class SessionCacheService {
                 MessageDto dto = objectMapper
                         .readValue(line,
                                 MessageDto.class);
+
                 MessageRole role = MessageRole
                         .valueOf(dto.r());
                 UUID id = UUID.fromString(dto.i());
 
+                // Restore createdAt from stored epoch ms
+                Instant createdAt = dto.t() != null
+                        ? Instant.ofEpochMilli(dto.t())
+                        : Instant.now();
+
                 messages.add(new Message(
-                        id, sessionId, role, dto.c(),
-                        null, null, null, null, null,
-                        null, null, false, null,
-                        Instant.now()));
+                        id,
+                        sessionId,
+                        role,
+                        dto.c(),
+                        null,          // providerId
+                        null,          // modelName
+                        null,          // promptTokens
+                        null,          // completionTokens
+                        null,          // totalTokens
+                        null,          // durationMs
+                        null,          // finishReason
+                        dto.e(),       // ← error (fixed!)
+                        null,          // errorMessage
+                        createdAt      // ← real timestamp (fixed!)
+                ));
 
             } catch (Exception e) {
-                // Fix: log session ID + line number only
-                // NOT the line content (may contain user text)
+                // Log session ID + line number only.
+                // Never log message content (privacy).
                 log.warn(
                         "Parse failed session={} line={}: {}",
                         sessionId, lineNum,
@@ -230,10 +264,17 @@ public class SessionCacheService {
     /**
      * Minimal DTO for Redis storage.
      * Short field names to reduce Redis memory usage.
-     * r = role, i = id, c = content
+     *
+     * r = role
+     * i = id
+     * c = content
+     * e = error flag    ← NEW (fixes PromptAssembler)
+     * t = createdAt ms  ← NEW (fixes ordering)
      */
     private record MessageDto(
             @JsonProperty("r") String r,
             @JsonProperty("i") String i,
-            @JsonProperty("c") String c) {}
+            @JsonProperty("c") String c,
+            @JsonProperty("e") boolean e,   // ← NEW
+            @JsonProperty("t") Long t) {}   // ← NEW
 }
