@@ -25,6 +25,13 @@ Built with **Java 21**, **Spring Boot 4**, and **Spring AI 2.0**
 
 ---
 
+## Articles & Resources
+
+- [Building a Local-First AI Assistant with Spring Boot 4 and Spring AI 2.0](https://dev.to/sujankim/building-a-local-first-ai-assistant-with-spring-boot-4-and-spring-ai-20-6ci) — Dev.to
+- [Same article on Hashnode](https://jarvis-ai-platform.hashnode.dev/building-a-local-first-ai-assistant-with-spring-boot-4-and-spring-ai-2-0)
+
+---
+
 <p align="center">
   <img src="docs/demo.gif" alt="Jarvis Demo">
 </p>

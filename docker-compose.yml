@@ -19,6 +19,7 @@ services:
       POSTGRES_DB: jarvis
       POSTGRES_USER: jarvis
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jarvis}
+      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5433:5432"
     volumes:
@@ -32,11 +33,28 @@ services:
     networks:
       - jarvis-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: jarvis-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - jarvis-redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jarvis-network
+
 volumes:
   jarvis-postgres-data:
     driver: local
-    labels:
-      com.jarvis.description: "Jarvis PostgreSQL persistent data"
+  jarvis-redis-data:
+    driver: local
 
 networks:
   jarvis-network:
