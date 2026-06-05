@@ -3,6 +3,8 @@ package ai.jarvis.memory.session;
 import ai.jarvis.chat.message.Message;
 import ai.jarvis.chat.message.MessageRepository;
 import ai.jarvis.chat.message.MessageRole;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -12,9 +14,22 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Caches session message history in Redis.
+ *
+ * ENCODING: JSON Lines (one JSON object per line).
+ * Each line: {"r":"ROLE","i":"uuid","c":"content"}
+ *
+ * WHY JSON Lines instead of custom escaping:
+ * - Jackson handles all special chars correctly
+ * - No data corruption for code, JSON, Windows paths
+ * - Safe round-trip for any message content
+ * - Still simple to parse (one object per line)
+ */
 @Slf4j
 @Service
 public class SessionCacheService {
@@ -22,28 +37,30 @@ public class SessionCacheService {
     private final ReactiveRedisTemplate<String, String>
             redisTemplate;
     private final MessageRepository messageRepository;
+    private final ObjectMapper objectMapper;
 
     private static final Duration SESSION_TTL =
             Duration.ofHours(1);
     private static final String MESSAGES_PREFIX =
             "session:messages:";
     private static final int MAX_MESSAGES = 20;
-    private static final String SEPARATOR = "|";
-    private static final String LINE_SEP = "\n";
 
     public SessionCacheService(
             @Qualifier("reactiveStringRedisTemplate")
             ReactiveRedisTemplate<String, String>
                     redisTemplate,
-            MessageRepository messageRepository) {
+            MessageRepository messageRepository,
+            @Qualifier("jarvisObjectMapper")
+            ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.messageRepository = messageRepository;
+        this.objectMapper = objectMapper;
     }
 
     /**
-     * Get session history from Redis or PostgreSQL.
-     * Cache HIT  → Redis   (~1ms)
-     * Cache MISS → PostgreSQL (~50ms) then cached
+     * Get session history.
+     * Cache HIT → Redis (~1ms)
+     * Cache MISS → PostgreSQL last 20 rows + cache
      */
     public Mono<List<Message>> getSessionHistory(
             UUID sessionId) {
@@ -54,7 +71,6 @@ public class SessionCacheService {
                 .get(key)
                 .flatMap(cached -> {
                     log.debug("Cache HIT: {}", sessionId);
-                    // Extend TTL on access
                     return redisTemplate
                             .expire(key, SESSION_TTL)
                             .thenReturn(
@@ -66,16 +82,16 @@ public class SessionCacheService {
                 )
                 .onErrorResume(error -> {
                     log.warn(
-                            "Redis error, using DB: {}",
-                            error.getMessage());
+                            "Redis error [{}], using DB: {}",
+                            sessionId,
+                            error.getClass().getSimpleName());
                     return loadFromDb(sessionId);
                 });
     }
 
     /**
-     * Refresh cache after new message saved.
-     * Reloads fresh data from DB and re-caches.
-     * Does NOT delete — just refreshes.
+     * Refresh cache after message saved.
+     * Reloads from DB and re-caches.
      */
     public Mono<Void> refreshCache(UUID sessionId) {
         String key = MESSAGES_PREFIX + sessionId;
@@ -90,7 +106,6 @@ public class SessionCacheService {
 
     /**
      * Hard invalidate — only when session deleted.
-     * NOT called after every message anymore.
      */
     public Mono<Void> invalidate(UUID sessionId) {
         return redisTemplate
@@ -112,81 +127,113 @@ public class SessionCacheService {
                 );
     }
 
+    /**
+     * Load last MAX_MESSAGES from DB at query level.
+     * No in-memory slicing needed.
+     */
     private Mono<List<Message>> loadFromDb(
             UUID sessionId) {
-        log.debug("Cache MISS: {} — DB query",
+        log.debug("Cache MISS [{}] — DB query",
                 sessionId);
+        // LIMIT pushed to DB query
         return messageRepository
-                .findBySessionIdOrderByCreatedAtAsc(
-                        sessionId)
-                .collectList()
-                .map(messages -> {
-                    if (messages.size() > MAX_MESSAGES) {
-                        return messages.subList(
-                                messages.size()
-                                        - MAX_MESSAGES,
-                                messages.size());
-                    }
-                    return messages;
-                });
+                .findLastNBySessionId(
+                        sessionId, MAX_MESSAGES)
+                .collectList();
     }
 
     private Mono<Void> cacheMessages(
             String key, List<Message> messages) {
-        String serialized = serialize(messages);
-        return redisTemplate.opsForValue()
-                .set(key, serialized, SESSION_TTL)
-                .doOnSuccess(ok ->
-                        log.debug(
-                                "Cached {} msgs: {}",
-                                messages.size(), key))
-                .then();
+        try {
+            String serialized = serialize(messages);
+            return redisTemplate.opsForValue()
+                    .set(key, serialized, SESSION_TTL)
+                    .doOnSuccess(ok ->
+                            log.debug(
+                                    "Cached {} msgs [{}]",
+                                    messages.size(), key))
+                    .then();
+        } catch (Exception e) {
+            log.error(
+                    "Cache write failed [{}]: {}",
+                    key, e.getClass().getSimpleName());
+            return Mono.empty();
+        }
     }
 
-    private String serialize(List<Message> messages) {
+    /**
+     * Serialize as JSON Lines.
+     * Each line = one MessageDto JSON object.
+     * Jackson handles all special chars correctly.
+     */
+    private String serialize(
+            List<Message> messages) throws Exception {
         StringBuilder sb = new StringBuilder();
         for (Message msg : messages) {
             if (msg.role() == null) continue;
             if (msg.content() == null) continue;
-            sb.append(msg.role().name())
-                    .append(SEPARATOR)
-                    .append(msg.id().toString())
-                    .append(SEPARATOR)
-                    .append(msg.content()
-                            .replace("\n", "\\n"))
-                    .append(LINE_SEP);
+            MessageDto dto = new MessageDto(
+                    msg.role().name(),
+                    msg.id().toString(),
+                    msg.content()
+            );
+            sb.append(objectMapper.writeValueAsString(dto))
+                    .append("\n");
         }
         return sb.toString();
     }
 
+    /**
+     * Deserialize JSON Lines back to Message list.
+     * Fix: logs session ID only, NOT message content.
+     */
     private List<Message> deserialize(
             String data, UUID sessionId) {
         List<Message> messages = new ArrayList<>();
         if (data == null || data.isBlank()) {
             return messages;
         }
-        String[] lines = data.split(LINE_SEP);
+
+        String[] lines = data.split("\n");
+        int lineNum = 0;
         for (String line : lines) {
+            lineNum++;
             if (line.isBlank()) continue;
-            String[] parts = line.split(
-                    "\\" + SEPARATOR, 3);
-            if (parts.length < 3) continue;
             try {
+                MessageDto dto = objectMapper
+                        .readValue(line,
+                                MessageDto.class);
                 MessageRole role = MessageRole
-                        .valueOf(parts[0].trim());
-                UUID id = UUID.fromString(
-                        parts[1].trim());
-                String content = parts[2]
-                        .replace("\\n", "\n");
+                        .valueOf(dto.r());
+                UUID id = UUID.fromString(dto.i());
+
                 messages.add(new Message(
-                        id, sessionId, role, content,
+                        id, sessionId, role, dto.c(),
                         null, null, null, null, null,
                         null, null, false, null,
                         Instant.now()));
+
             } catch (Exception e) {
-                log.warn("Skip line: {}", line);
+                // Fix: log session ID + line number only
+                // NOT the line content (may contain user text)
+                log.warn(
+                        "Parse failed session={} line={}: {}",
+                        sessionId, lineNum,
+                        e.getClass().getSimpleName());
             }
         }
         return messages;
     }
+
+    // ── DTO for Redis serialization ────────────────
+
+    /**
+     * Minimal DTO for Redis storage.
+     * Short field names to reduce Redis memory usage.
+     * r = role, i = id, c = content
+     */
+    private record MessageDto(
+            @JsonProperty("r") String r,
+            @JsonProperty("i") String i,
+            @JsonProperty("c") String c) {}
 }

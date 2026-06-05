@@ -35,16 +35,20 @@ public class AiOrchestrator {
 
         long startTime = System.currentTimeMillis();
 
+        // Generate ID first so we can exclude it
+        // from history when building the prompt
+        UUID userMsgId = UUID.randomUUID();
+
         Message userMsg = Message.userMessage(
-                UUID.randomUUID(),
+                userMsgId,
                 request.sessionId(),
                 request.message()
         );
 
         return r2dbcEntityTemplate
                 .insert(userMsg)
-                // .then() closes immediately after loadHistory()
-                // NOT wrapping the entire downstream chain
+                // Load history AFTER insert
+                // SessionMemoryService: Redis first, DB fallback
                 .then(sessionMemoryService.loadHistory(
                         request.sessionId()))
                 .flatMap(history ->
@@ -67,12 +71,16 @@ public class AiOrchestrator {
                                     provider.getModelName()
                             );
 
+                    // filter by ID instead of tail trim.
+                    // Tail trim breaks on Redis cache HIT because
+                    // the cached list may not include the new user
+                    // message yet. Filtering by ID works correctly
+                    // for both cache HIT and cache MISS.
                     List<Message> historyWithoutCurrent =
-                            history.subList(
-                                    0,
-                                    Math.max(0,
-                                            history.size() - 1)
-                            );
+                            history.stream()
+                                    .filter(msg -> !msg.id()
+                                            .equals(userMsgId))
+                                    .toList();
 
                     Prompt prompt = promptAssembler.assemble(
                             request.message(),
@@ -116,13 +124,19 @@ public class AiOrchestrator {
                                         provider.getName()
                                 );
 
+                                // Save async — does not block stream
                                 saveAssistantMessage(
                                         request.sessionId(),
                                         responseBuilder.toString(),
                                         tokenCount.get(),
                                         (int) duration,
                                         provider.getModelName()
-                                ).subscribe();
+                                )
+                                        .doOnError(e ->
+                                                log.error(
+                                                        "Save assistant failed: {}",
+                                                        e.getMessage()))
+                                        .subscribe();
                             })
                             .doOnError(error -> {
                                 log.error(
@@ -139,8 +153,14 @@ public class AiOrchestrator {
                             });
                 })
                 .doFinally(signal ->
+                        // Refresh cache after exchange completes
+                        // so next request gets updated history
                         sessionMemoryService
                                 .onMessageSaved(request.sessionId())
+                                .doOnError(e ->
+                                        log.warn(
+                                                "Cache refresh failed: {}",
+                                                e.getMessage()))
                                 .subscribe()
                 );
     }
@@ -166,19 +186,30 @@ public class AiOrchestrator {
 
         return r2dbcEntityTemplate
                 .insert(assistantMsg)
-                .flatMap(saved -> {
-                    log.debug("Assistant message saved: {}",
-                            saved.id());
-                    return sessionRepository
-                            .incrementMessageCount(
-                                    sessionId, tokens)
-                            .then();
-                })
+                .doOnSuccess(saved ->
+                        log.debug("Assistant saved: {}",
+                                saved.id()))
+                .flatMap(saved ->
+                        sessionRepository
+                                .incrementMessageCount(
+                                        sessionId, tokens)
+                                .doOnSuccess(rows ->
+                                        log.debug(
+                                                "Session updated: rows={}",
+                                                rows))
+                                .doOnError(error ->
+                                        log.error(
+                                                "incrementMessageCount "
+                                                        + "failed [{}]: {}",
+                                                sessionId,
+                                                error.getMessage()))
+                )
                 .doOnError(error ->
                         log.error(
-                                "Failed to save assistant message: {}",
-                                error.getMessage(), error)
-                )
+                                "saveAssistantMessage "
+                                        + "failed [{}]: {}",
+                                sessionId,
+                                error.getMessage(), error))
                 .then();
     }
 
@@ -191,8 +222,14 @@ public class AiOrchestrator {
         );
         return r2dbcEntityTemplate
                 .insert(errorMsg)
+                .doOnError(e ->
+                        log.error(
+                                "saveErrorMessage failed: {}",
+                                e.getMessage()))
                 .then();
     }
+
+    // ── Private record ────────────────────────────
 
     private record ProviderAndHistory(
             AiProvider provider,
