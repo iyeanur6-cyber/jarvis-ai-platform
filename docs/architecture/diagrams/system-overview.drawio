@@ -19,7 +19,7 @@
           <mxCell id="SCGlZj5swCD9gWGE6OnE-5" parent="1" style="whiteSpace=wrap;strokeWidth=2;fillColor=light-dark(#eeeeee,#1f2020);strokeColor=light-dark(#999999,#cccccc);fontColor=light-dark(#333333,#cccccc);" value="PromptAssembler&#xa;+&#xa;ProviderRouter" vertex="1">
             <mxGeometry height="102" width="185" x="75" y="508" as="geometry" />
           </mxCell>
-          <mxCell id="SCGlZj5swCD9gWGE6OnE-6" parent="1" style="whiteSpace=wrap;strokeWidth=2;fillColor=light-dark(#eeeeee,#1f2020);strokeColor=light-dark(#999999,#cccccc);fontColor=light-dark(#333333,#cccccc);" value="Ollama&#xa;llama3.1&#xa;Primary" vertex="1">
+          <mxCell id="SCGlZj5swCD9gWGE6OnE-6" parent="1" style="whiteSpace=wrap;strokeWidth=2;fillColor=light-dark(#eeeeee,#1f2020);strokeColor=light-dark(#999999,#cccccc);fontColor=light-dark(#333333,#cccccc);" value="Ollama&#xa;llama3.1:8b&#xa;Primary" vertex="1">
             <mxGeometry height="102" width="122" x="20" y="660" as="geometry" />
           </mxCell>
           <mxCell id="SCGlZj5swCD9gWGE6OnE-7" parent="1" style="whiteSpace=wrap;strokeWidth=2;fillColor=light-dark(#eeeeee,#1f2020);strokeColor=light-dark(#999999,#cccccc);fontColor=light-dark(#333333,#cccccc);" value="Gemini&#xa;2.0-flash&#xa;Fallback" vertex="1">
