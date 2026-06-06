@@ -8,7 +8,6 @@ on:
     branches:
       - main
 
-# Force Node.js 24 for all actions in this workflow
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -20,7 +19,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: ankane/pgvector:v0.7.4
         env:
           POSTGRES_USER: jarvis
           POSTGRES_PASSWORD: jarvis
@@ -36,17 +35,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v5
 
       - name: Set up Java 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
           cache: maven
 
-      # Fix exit code 126: mvnw needs execute permission
-      # Windows does not preserve Unix file permissions in Git
       - name: Make Maven wrapper executable
         run: chmod +x server/mvnw
 
@@ -60,8 +57,6 @@ jobs:
           DATABASE_PASSWORD: jarvis
           JARVIS_JWT_SECRET: test-secret-key-minimum-32-chars-long-enough
 
-      # actions/upload-artifact v6 = Node.js 24 native support
-      # if-no-files-found: warn prevents failure when no reports
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v7
