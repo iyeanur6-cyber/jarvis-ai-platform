@@ -133,62 +133,69 @@ No coding experience required.
 | Git | Latest | [git-scm.com](https://git-scm.com/) |
 ---
 
-## 1. Fork and Clone
+---
 
-```bash id="4txl5q"
+## Pull Required Ollama Models
+
+```bash
+# Chat model (required)
+ollama pull llama3.1:8b
+
+# Embedding model (required for Phase 2)
+ollama pull nomic-embed-text
+```
+
+---
+
+### 1. Fork and Clone
+
+```bash
 git clone https://github.com/YOUR_USERNAME/jarvis-ai-platform.git
 
 cd jarvis-ai-platform
 ```
 
----
+### 2. Add Upstream Remote
 
-## 2. Add Upstream Remote
-
-```bash id="9cwk3j"
+```bash
 git remote add upstream https://github.com/sujankim/jarvis-ai-platform.git
 ```
 
----
+### 3. Configure Environment
 
-## 3. Configure Environment
-
-```bash id="65rwwr"
+```bash
 cp .env.example .env
 ```
 
 Update `.env`:
 
-```env id="n82w6m"
+```env
 JARVIS_JWT_SECRET=your-secret-key-with-32-characters-minimum
 ```
 
----
+### 4. Start Infrastructure
 
-## 4. Start Infrastructure
-
-```bash id="5z2v1l"
-docker compose -f docker-compose.dev.yml up -d
+```bash
+# PostgreSQL + Redis
+docker compose up -d
 ```
 
----
+> Note: The main Docker Compose setup includes PostgreSQL with pgvector and Redis.
 
-## 5. Pull AI Model
+### 5. Run Jarvis Backend
 
-```bash id="0gtdq5"
-ollama pull llama3.1:8b
-```
-
----
-
-## 6. Run Jarvis Backend
-
-```bash id="4cgvg6"
+```bash
 cd server
 
 ./mvnw spring-boot:run
 ```
 
+### 6. First-Time Setup
+
+```text
+jarvis:> setup
+jarvis:> login
+```
 ---
 
 ## 7. Verify Setup
