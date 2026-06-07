@@ -253,6 +253,7 @@ Apache License 2.0 — see **[LICENSE](LICENSE)**
 
 - [Same on Hashnode](https://jarvis-ai-platform.hashnode.dev/building-a-local-first-ai-assistant-with-spring-boot-4-and-spring-ai-2-0)
 
+- [Jarvis AI Platform: Building Long-Term Memory with pgvector and Spring AI — Medium ](https://medium.com/@sujan.lamichhane32/jarvis-ai-platform-building-long-term-memory-with-pgvector-and-spring-ai-c114b79dceda)
 ---
 
 <div align="center">
