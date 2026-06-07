@@ -1,6 +1,7 @@
 package ai.jarvis.config;
 
 import ai.jarvis.chat.message.MessageRole;
+import ai.jarvis.memory.MemoryType;
 import ai.jarvis.user.UserRole;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -73,6 +74,27 @@ public class R2dbcConfig {
     implements Converter<MessageRole, String> {
         @Override
         public String convert(MessageRole source) {
+            return source.name();
+        }
+    }
+
+    // ── MemoryType converters ──────────────────────────
+
+    @ReadingConverter
+    public static class MemoryTypeReadConverter
+            implements Converter<String, MemoryType> {
+        @Override
+        public MemoryType convert(String source) {
+            return MemoryType.valueOf(
+                    source.toUpperCase());
+        }
+    }
+
+    @WritingConverter
+    public static class MemoryTypeWriteConverter
+            implements Converter<MemoryType, String> {
+        @Override
+        public String convert(MemoryType source) {
             return source.name();
         }
     }
