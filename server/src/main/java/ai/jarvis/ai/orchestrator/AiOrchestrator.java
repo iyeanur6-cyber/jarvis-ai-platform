@@ -7,6 +7,7 @@ import ai.jarvis.ai.provider.ProviderRouter;
 import ai.jarvis.chat.message.Message;
 import ai.jarvis.chat.session.ChatSessionRepository;
 import ai.jarvis.memory.MemoryExtractionService;
+import ai.jarvis.memory.MemoryService;
 import ai.jarvis.memory.session.SessionMemoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,14 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Core AI orchestration service.
+ *
+ * PHASE 2 ADDITION:
+ * Now loads long-term memories before building prompt.
+ * Memory loading runs IN PARALLEL with session history
+ * loading for performance (no extra latency).
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -31,16 +40,15 @@ public class AiOrchestrator {
     private final PromptAssembler promptAssembler;
     private final WorkingMemoryBuilder workingMemoryBuilder;
     private final SessionMemoryService sessionMemoryService;
-    private final MemoryExtractionService memoryExtractionService;
+    private final MemoryService memoryService;           // NEW
+    private final MemoryExtractionService
+            memoryExtractionService;                      // EXISTING
 
     public Flux<String> chat(OrchestratorRequest request) {
 
         long startTime = System.currentTimeMillis();
 
-        // Generate ID first so we can exclude it
-        // from history when building the prompt
         UUID userMsgId = UUID.randomUUID();
-
         Message userMsg = Message.userMessage(
                 userMsgId,
                 request.sessionId(),
@@ -49,20 +57,36 @@ public class AiOrchestrator {
 
         return r2dbcEntityTemplate
                 .insert(userMsg)
-                // Load history AFTER insert
-                // SessionMemoryService: Redis first, DB fallback
-                .then(sessionMemoryService.loadHistory(
-                        request.sessionId()))
-                .flatMap(history ->
-                        providerRouter.route()
-                                .map(provider ->
-                                        new ProviderAndHistory(
-                                                provider, history))
+                // Load session history AND memories IN PARALLEL
+                // Mono.zip runs both simultaneously
+                // Result: no extra latency for memory loading!
+                .then(
+                        Mono.zip(
+                                // Left: session history
+                                sessionMemoryService.loadHistory(
+                                        request.sessionId()),
+                                // Right: formatted memory context
+                                // Empty string if no userId or no memories
+                                loadMemoryContext(request.userId())
+                        )
                 )
-                .flatMapMany(pah -> {
+                .flatMap(tuple -> {
+                    List<Message> history = tuple.getT1();
+                    String memoryContext = tuple.getT2();
 
-                    AiProvider provider = pah.provider();
-                    List<Message> history = pah.history();
+                    return providerRouter.route()
+                            .map(provider ->
+                                    new ProviderAndContext(
+                                            provider,
+                                            history,
+                                            memoryContext));
+                })
+                .flatMapMany(pac -> {
+
+                    AiProvider provider = pac.provider();
+                    List<Message> history = pac.history();
+                    String memoryContext =
+                            pac.memoryContext();
 
                     String workingMemory =
                             workingMemoryBuilder.build(
@@ -73,22 +97,21 @@ public class AiOrchestrator {
                                     provider.getModelName()
                             );
 
-                    // filter by ID instead of tail trim.
-                    // Tail trim breaks on Redis cache HIT because
-                    // the cached list may not include the new user
-                    // message yet. Filtering by ID works correctly
-                    // for both cache HIT and cache MISS.
+                    // Filter out current user message
+                    // from history (just inserted above)
                     List<Message> historyWithoutCurrent =
                             history.stream()
                                     .filter(msg -> !msg.id()
                                             .equals(userMsgId))
                                     .toList();
 
+                    // Build prompt WITH memory context
                     Prompt prompt = promptAssembler.assemble(
                             request.message(),
                             workingMemory,
                             historyWithoutCurrent,
-                            request.username()
+                            request.username(),
+                            memoryContext  // ← NEW
                     );
 
                     StringBuilder responseBuilder =
@@ -98,18 +121,22 @@ public class AiOrchestrator {
 
                     log.info(
                             "AI request: user={} session={} "
-                                    + "provider={} model={} history={}",
+                                    + "provider={} model={} "
+                                    + "history={} memories={}",
                             request.username(),
                             request.sessionId(),
                             provider.getName(),
                             provider.getModelName(),
-                            historyWithoutCurrent.size()
+                            historyWithoutCurrent.size(),
+                            memoryContext.isBlank() ? 0 : 1
                     );
 
                     return provider.streamChat(prompt)
                             .doOnNext(token -> {
-                                responseBuilder.append(token);
-                                tokenCount.incrementAndGet();
+                                responseBuilder
+                                        .append(token);
+                                tokenCount
+                                        .incrementAndGet();
                             })
                             .doOnComplete(() -> {
                                 long duration =
@@ -118,7 +145,8 @@ public class AiOrchestrator {
 
                                 log.info(
                                         "AI response: user={} "
-                                                + "tokens≈{} duration={}ms "
+                                                + "tokens≈{} "
+                                                + "duration={}ms "
                                                 + "provider={}",
                                         request.username(),
                                         tokenCount.get(),
@@ -126,39 +154,25 @@ public class AiOrchestrator {
                                         provider.getName()
                                 );
 
-                                // Save async — does not block stream
                                 saveAssistantMessage(
                                         request.sessionId(),
-                                        responseBuilder.toString(),
+                                        responseBuilder
+                                                .toString(),
                                         tokenCount.get(),
                                         (int) duration,
                                         provider.getModelName()
                                 )
                                         .doOnError(e ->
                                                 log.error(
-                                                        "Save assistant failed: {}",
+                                                        "Save failed: {}",
                                                         e.getMessage()))
                                         .subscribe();
-                                // ========== Extract memories ASYNC ==========
-                                // Fire‑and‑forget; never blocks chat streaming.
-                                // If extraction fails, only a debug log is emitted.
-                                memoryExtractionService
-                                        .extractAndSave(
-                                                request.userId(),
-                                                request.sessionId(),
-                                                request.message()
-                                        )
-                                        .subscribe(
-                                                null,
-                                                error -> log.debug(
-                                                        "Extraction skipped: {}",
-                                                        error.getMessage())
-                                        );
                             })
                             .doOnError(error -> {
                                 log.error(
                                         "AI error: user={} "
-                                                + "provider={} error={}",
+                                                + "provider={} "
+                                                + "error={}",
                                         request.username(),
                                         provider.getName(),
                                         error.getMessage()
@@ -169,20 +183,61 @@ public class AiOrchestrator {
                                 ).subscribe();
                             });
                 })
-                .doFinally(signal ->
-                        // Refresh cache after exchange completes
-                        // so next request gets updated history
-                        sessionMemoryService
-                                .onMessageSaved(request.sessionId())
-                                .doOnError(e ->
-                                        log.warn(
-                                                "Cache refresh failed: {}",
-                                                e.getMessage()))
-                                .subscribe()
-                );
+                .doFinally(signal -> {
+                    // Cache refresh after exchange
+                    sessionMemoryService
+                            .onMessageSaved(
+                                    request.sessionId())
+                            .subscribe();
+
+                    // Memory extraction (async)
+                    if (request.userId() != null) {
+                        memoryExtractionService
+                                .extractAndSave(
+                                        request.userId(),
+                                        request.sessionId(),
+                                        request.message()
+                                )
+                                .subscribe(
+                                        null,
+                                        error -> log.debug(
+                                                "Extraction skipped: {}",
+                                                error.getMessage())
+                                );
+                    }
+                });
     }
 
-    // ── Private helpers ───────────────────────────
+    // ── Private Helpers ───────────────────────────
+
+    /**
+     * Load formatted memory context for prompt.
+     *
+     * WHY Mono<String> not Flux<Memory>:
+     * PromptAssembler needs a ready-to-inject String.
+     * MemoryService.formatForPrompt() does this.
+     *
+     * WHY handle null userId:
+     * Some code paths may not have userId yet.
+     * Gracefully return empty string in that case.
+     * Chat still works — just without memories.
+     *
+     * @param userId owner of the memories
+     * @return formatted memory string or empty string
+     */
+    private Mono<String> loadMemoryContext(UUID userId) {
+        if (userId == null) {
+            return Mono.just("");
+        }
+
+        return memoryService
+                .formatForPrompt(userId)
+                .onErrorReturn("")
+                // If memory service fails:
+                // return empty (chat must never fail
+                // because of memory service issues)
+                .defaultIfEmpty("");
+    }
 
     private Mono<Void> saveAssistantMessage(
             UUID sessionId,
@@ -210,23 +265,17 @@ public class AiOrchestrator {
                         sessionRepository
                                 .incrementMessageCount(
                                         sessionId, tokens)
-                                .doOnSuccess(rows ->
-                                        log.debug(
-                                                "Session updated: rows={}",
-                                                rows))
                                 .doOnError(error ->
                                         log.error(
                                                 "incrementMessageCount "
-                                                        + "failed [{}]: {}",
-                                                sessionId,
+                                                        + "failed: {}",
                                                 error.getMessage()))
                 )
                 .doOnError(error ->
                         log.error(
                                 "saveAssistantMessage "
-                                        + "failed [{}]: {}",
-                                sessionId,
-                                error.getMessage(), error))
+                                        + "failed: {}",
+                                error.getMessage()))
                 .then();
     }
 
@@ -239,16 +288,13 @@ public class AiOrchestrator {
         );
         return r2dbcEntityTemplate
                 .insert(errorMsg)
-                .doOnError(e ->
-                        log.error(
-                                "saveErrorMessage failed: {}",
-                                e.getMessage()))
                 .then();
     }
 
-    // ── Private record ────────────────────────────
+    // ── Private Records ───────────────────────────
 
-    private record ProviderAndHistory(
+    private record ProviderAndContext(
             AiProvider provider,
-            List<Message> history) {}
+            List<Message> history,
+            String memoryContext) {}
 }
