@@ -170,7 +170,11 @@ public class MemoryService {
         return save(userId, type, content, sourceSession)
                 .flatMap(savedMemory ->
                         embeddingService
-                                .embed(content)
+                                // Fix 2: use savedMemory.content()
+                                // not raw content parameter.
+                                // save() trims whitespace before storing.
+                                // Embedding must match stored text exactly.
+                                .embed(savedMemory.content())
                                 .flatMap(embedding ->
                                         embeddingRepository
                                                 .storeEmbedding(
@@ -178,8 +182,6 @@ public class MemoryService {
                                                         embedding)
                                                 .thenReturn(savedMemory)
                                 )
-                                // Embedding failed: return memory anyway
-                                // It can be found by importance-based search
                                 .onErrorReturn(savedMemory)
                                 .defaultIfEmpty(savedMemory)
                 );

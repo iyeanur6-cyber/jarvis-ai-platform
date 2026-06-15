@@ -9,8 +9,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.sql.ResultSet;
-import java.util.Arrays;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -39,6 +37,11 @@ public class MemoryEmbeddingRepository {
      * CALLED BY: MemoryService.saveWithEmbedding()
      * after the memory record is already saved.
      *
+     * FIX: Check affected row count.
+     * If 0 rows updated = memory was deleted between
+     * save() and storeEmbedding() (race condition).
+     * Log warning instead of silently losing embedding.
+     *
      * HOW VECTOR IS STORED:
      * pgvector accepts vectors as string: "[0.1,0.2,...]"
      * We format float[] to this string and use ::vector cast.
@@ -53,7 +56,8 @@ public class MemoryEmbeddingRepository {
         return Mono.fromCallable(() -> {
                     String vectorStr = toVectorString(embedding);
 
-                    jdbcTemplate.update(
+                    // Fix 1: capture row count to detect silent failures
+                    int updated = jdbcTemplate.update(
                             "UPDATE memories "
                                     + "SET embedding = ?::vector, "
                                     + "    updated_at = NOW() "
@@ -62,9 +66,19 @@ public class MemoryEmbeddingRepository {
                             memoryId.toString()
                     );
 
-                    log.debug(
-                            "Stored embedding for memory={}",
-                            memoryId);
+                    // Fix 1: warn when 0 rows affected
+                    // (memory deleted between save and embed)
+                    if (updated == 0) {
+                        log.warn(
+                                "Embedding not stored "
+                                        + "(memory not found): memory={}",
+                                memoryId);
+                    } else {
+                        log.debug(
+                                "Stored embedding for memory={}",
+                                memoryId);
+                    }
+
                     return null;
                 })
                 .subscribeOn(Schedulers.boundedElastic())
@@ -87,11 +101,11 @@ public class MemoryEmbeddingRepository {
      * USES: search_memories_by_embedding() SQL function
      * created in V11__add_embeddings_to_memories.sql
      *
-     * RETURNS: memories ordered by cosine similarity
+     * RETURNS: memories ordered by cosine similarity.
      * Only returns memories above minSimilarity threshold.
      * Only returns memories that HAVE an embedding stored.
      *
-     * @param userId        search only this user's memories
+     * @param userId         search only this user's memories
      * @param queryEmbedding embedding of the search query
      * @param limit          max results to return
      * @param minSimilarity  minimum cosine similarity (0.0-1.0)
@@ -103,15 +117,15 @@ public class MemoryEmbeddingRepository {
             double minSimilarity) {
 
         return Mono.fromCallable(() -> {
-                    String vectorStr = toVectorString(queryEmbedding);
+                    String vectorStr =
+                            toVectorString(queryEmbedding);
 
                     return jdbcTemplate.query(
                             "SELECT * FROM "
                                     + "search_memories_by_embedding("
                                     + "?::uuid, ?::vector, ?, ?"
                                     + ")",
-                            (rs, rowNum) ->
-                                    mapRow(rs),
+                            (rs, rowNum) -> mapRow(rs),
                             userId.toString(),
                             vectorStr,
                             limit,
@@ -126,8 +140,6 @@ public class MemoryEmbeddingRepository {
                                     + "user={}: {}",
                             userId,
                             error.getMessage());
-                    // Fall back to empty — caller uses
-                    // importance-based lookup as fallback
                     return Flux.empty();
                 });
     }
@@ -155,6 +167,9 @@ public class MemoryEmbeddingRepository {
     /**
      * Map SQL result row to SemanticSearchResult.
      * Matches columns returned by search function in V11.
+     *
+     * @param rs SQL ResultSet positioned at current row
+     * @return SemanticSearchResult with all fields populated
      */
     private SemanticSearchResult mapRow(ResultSet rs)
             throws java.sql.SQLException {
@@ -174,6 +189,9 @@ public class MemoryEmbeddingRepository {
     /**
      * Result of a semantic similarity search.
      * Includes similarity score for logging/debugging.
+     *
+     * similarity: cosine similarity score (0.0-1.0)
+     * 1.0 = identical meaning, 0.0 = completely unrelated
      */
     public record SemanticSearchResult(
             UUID id,
