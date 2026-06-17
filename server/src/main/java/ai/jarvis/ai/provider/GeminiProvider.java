@@ -7,7 +7,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.google.genai.GoogleGenAiChatModel;
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -15,34 +15,25 @@ import reactor.core.publisher.Mono;
 /**
  * Gemini AI provider — cloud fallback.
  *
- * ACTIVATION:
- * Only created when spring.ai.google.genai.api-key
- * is set to a non-empty value.
+ * ACTIVATION FIX (CodeRabbit Issue #2):
+ * @ConditionalOnProperty allows blank string values —
+ * the property EXISTS even when GEMINI_API_KEY is empty.
+ * This prevented GeminiUnavailableProvider from creating.
  *
- * WHY MANUAL CLIENT:
- * GoogleGenAiChatAutoConfiguration is excluded in
- * application.yml because it throws IllegalStateException
- * when api-key is empty/missing.
- * We build the client manually here so it only
- * initializes when the key actually exists.
+ * @ConditionalOnExpression uses StringUtils.hasText()
+ * which returns FALSE for null, empty, AND blank strings.
+ * This correctly activates only when key has real content.
  *
- * CONSTRUCTOR PATTERN (verified from Spring AI GitHub):
- * Official integration test (GoogleGenAiChatModelIT.java)
- * uses GoogleGenAiChatModel.builder() pattern.
- * Source: github.com/spring-projects/spring-ai/blob/main/
- * models/spring-ai-google-genai/src/test/java/
- * org/springframework/ai/google/genai/
- * GoogleGenAiChatModelIT.java
- *
- * Direct constructor requires 5 params including
- * RetryTemplate + ObservationRegistry (not in pom.xml).
- * Builder pattern handles these internally — zero extra deps.
+ * SECURITY FIX (CodeRabbit Issue #3):
+ * Removed debug log that leaked API key prefix/length.
+ * Never log credential fragments — use generic message.
  */
 @Slf4j
-@Component("gemini")
-@ConditionalOnProperty(
-        name = "spring.ai.google.genai.api-key",
-        matchIfMissing = false
+@Component
+@ConditionalOnExpression(
+        "T(org.springframework.util.StringUtils)"
+                + ".hasText('${spring.ai.google.genai"
+                + ".api-key:}')"
 )
 public class GeminiProvider implements AiProvider {
 
@@ -62,31 +53,16 @@ public class GeminiProvider implements AiProvider {
 
         if (apiKey != null && !apiKey.isBlank()) {
 
-            // TEMPORARY DEBUG — remove after confirming key works
-            log.info(
-                    "Gemini API key loaded: length={} prefix={}",
-                    apiKey.length(),
-                    apiKey.substring(0, Math.min(8, apiKey.length()))
-            );
-
-            // Step 1: Build Google GenAI HTTP client
             Client genAiClient = Client.builder()
                     .apiKey(apiKey)
                     .build();
 
-            // Step 2: Build GoogleGenAiChatModel
-            // Using builder() pattern — verified from
-            // official Spring AI integration test:
-            // GoogleGenAiChatModelIT.java uses:
-            // GoogleGenAiChatModel.builder()
-            //   .genAiClient(genAiClient)
-            //   .defaultOptions(options)
-            //   .build();
             GoogleGenAiChatModel chatModel =
                     GoogleGenAiChatModel.builder()
                             .genAiClient(genAiClient)
                             .defaultOptions(
-                                    GoogleGenAiChatOptions.builder()
+                                    GoogleGenAiChatOptions
+                                            .builder()
                                             .model(modelName)
                                             .temperature(0.7)
                                             .maxOutputTokens(2048)
@@ -94,11 +70,12 @@ public class GeminiProvider implements AiProvider {
                             )
                             .build();
 
-            // Step 3: Wrap in ChatClient for streaming
             this.chatClient = ChatClient
                     .builder(chatModel)
                     .build();
 
+            // FIX: Generic message — never log key content
+            // CodeRabbit Issue #3: remove prefix/length log
             log.info(
                     "GeminiProvider initialized: model={}",
                     modelName);
