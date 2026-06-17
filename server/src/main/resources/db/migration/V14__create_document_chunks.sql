@@ -2,48 +2,23 @@
 -- V14: Create Document Chunks Table
 -- Phase 3: RAG Engine
 --
--- Stores individual chunks from documents.
--- Each chunk has:
--- → The text content (for injection into prompts)
--- → A pgvector embedding (for semantic search)
--- → Position metadata (for source citation)
---
--- CHUNKING STRATEGY:
--- chunk_size:    500 tokens (~375 words)
--- chunk_overlap: 50 tokens (~37 words)
--- This preserves context across boundaries.
+-- FIXES (CodeRabbit):
+-- Issue #8: Composite FK (document_id, user_id)
+--           ensures chunk ownership matches document
+-- Issue #9: Added HNSW index for vector search
 -- ═══════════════════════════════════════════════════
 
 CREATE TABLE document_chunks (
 
                                  id              UUID            NOT NULL
                                                                           DEFAULT gen_random_uuid(),
-
                                  document_id     UUID            NOT NULL,
-
                                  user_id         UUID            NOT NULL,
-
-    -- The actual text of this chunk
-    -- Used when injecting into AI prompt
                                  content         TEXT            NOT NULL,
-
-    -- Position of this chunk in the document
-    -- chunk_index=0 is the first chunk
                                  chunk_index     INTEGER         NOT NULL DEFAULT 0,
-
-    -- Approximate page number (for citation)
-    -- NULL if page tracking not available
                                  page_number     INTEGER,
-
-    -- Token count estimate for this chunk
-    -- Used for context window budget calculation
                                  token_count     INTEGER         NOT NULL DEFAULT 0,
-
-    -- pgvector embedding of the chunk content
-    -- 768 dimensions from nomic-embed-text
-    -- NULL until embedding is generated
                                  embedding       vector(768),
-
                                  created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
 
     -- ── Constraints ──────────────────────────────
@@ -51,11 +26,17 @@ CREATE TABLE document_chunks (
                                  CONSTRAINT pk_document_chunks
                                      PRIMARY KEY (id),
 
-                                 CONSTRAINT fk_chunks_document
-                                     FOREIGN KEY (document_id)
-                                         REFERENCES documents (id)
+    -- FIX Issue #8: Composite FK enforces ownership.
+    -- chunk.user_id MUST match documents.user_id.
+    -- Without this: chunk could reference valid document_id
+    -- but different user_id → cross-tenant data leak.
+    -- Requires uq_documents_id_user index in V13.
+                                 CONSTRAINT fk_chunks_document_user
+                                     FOREIGN KEY (document_id, user_id)
+                                         REFERENCES documents (id, user_id)
                                          ON DELETE CASCADE,
 
+    -- Keep user FK for direct user cascade deletes
                                  CONSTRAINT fk_chunks_user
                                      FOREIGN KEY (user_id)
                                          REFERENCES users (id)
@@ -73,19 +54,32 @@ CREATE TABLE document_chunks (
 
 -- ── Indexes ───────────────────────────────────────
 
--- All chunks for a document (ordered by position)
 CREATE INDEX idx_chunks_document_id
     ON document_chunks (document_id, chunk_index ASC);
 
--- All chunks for a user (cross-document search)
 CREATE INDEX idx_chunks_user_id
     ON document_chunks (user_id);
 
--- Chunks WITH embeddings (for semantic search)
--- Partial index = only indexes rows where embedding IS NOT NULL
--- Smaller index, faster queries for search
+-- Partial index for non-null embeddings only
 CREATE INDEX idx_chunks_embedding_not_null
     ON document_chunks (user_id)
+    WHERE embedding IS NOT NULL;
+
+-- FIX Issue #9: HNSW vector index for fast
+-- approximate nearest-neighbor cosine search.
+-- Without this: full table scan on every RAG query.
+-- With HNSW: O(log n) search, ~99% accuracy.
+--
+-- HNSW parameters:
+-- m = 16             (connections per node, default)
+-- ef_construction = 64 (build accuracy vs speed tradeoff)
+--
+-- CodeRabbit: embedding <=> distance ranking is hot path.
+-- Becomes bottleneck without ANN index at scale.
+CREATE INDEX idx_chunks_embedding_hnsw
+    ON document_chunks
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64)
     WHERE embedding IS NOT NULL;
 
 -- ── Semantic Search Function ──────────────────────
@@ -121,22 +115,25 @@ FROM document_chunks c
 WHERE
     c.user_id = p_user_id
   AND c.embedding IS NOT NULL
-  AND 1 - (c.embedding <=> p_embedding)
-    >= p_min_similarity
-  -- Optional: filter to specific document
+  AND 1 - (c.embedding <=> p_embedding) >= p_min_similarity
   AND (p_document_id IS NULL
     OR c.document_id = p_document_id)
 ORDER BY
     c.embedding <=> p_embedding ASC
-    LIMIT p_limit;
+LIMIT p_limit;
 $$;
 
 COMMENT ON FUNCTION search_chunks_by_embedding IS
-    'Semantic search across document chunks using cosine similarity.
-     Optional p_document_id filters to a single document.
-     Returns chunks ordered by relevance (most similar first).';
+    'Semantic search using cosine similarity + HNSW index.
+     Optional p_document_id filters to single document.
+     Returns chunks ordered by relevance.';
 
 COMMENT ON TABLE document_chunks IS
-    'Individual chunks from uploaded documents.
-     Each chunk has a pgvector embedding for semantic search.
-     Chunks are injected into AI prompts as relevant context.';
+    'Chunks from uploaded documents with pgvector embeddings.
+     HNSW index enables fast approximate semantic search.
+     Composite FK guarantees chunk ownership = document owner.';
+
+COMMENT ON INDEX idx_chunks_embedding_hnsw IS
+    'HNSW index for fast ANN cosine distance search.
+     ~99% accuracy vs exact search, O(log n) complexity.
+     Only indexes rows with non-null embeddings.';

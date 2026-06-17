@@ -2,48 +2,24 @@
 -- V13: Create Documents Table
 -- Phase 3: RAG Engine
 --
--- Stores metadata about uploaded documents.
--- Actual document content is chunked and stored
--- in document_chunks table (V13).
---
--- Document lifecycle:
--- PENDING   → uploaded, waiting to process
--- PROCESSING → currently chunking + embedding
--- READY     → all chunks embedded, ready for search
--- FAILED    → processing failed, can retry
+-- FIXES (CodeRabbit):
+-- Issue #7: Added CHECK (chunk_count >= 0)
+-- Issue #8: Added UNIQUE (id, user_id) for composite
+--           FK in document_chunks table
 -- ═══════════════════════════════════════════════════
 
 CREATE TABLE documents (
 
                            id              UUID            NOT NULL
                                                                     DEFAULT gen_random_uuid(),
-
                            user_id         UUID            NOT NULL,
-
-    -- Original filename as uploaded by user
                            filename        VARCHAR(500)    NOT NULL,
-
-    -- File type for parser selection
-    -- Values: PDF, TXT, MARKDOWN
                            file_type       VARCHAR(20)     NOT NULL,
-
-    -- File size in bytes (for display + limits)
                            file_size_bytes BIGINT          NOT NULL DEFAULT 0,
-
-    -- Processing status
-                           status          VARCHAR(20)     NOT NULL
-                                                                    DEFAULT 'PENDING',
-
-    -- Total chunks created during processing
-    -- 0 = not yet processed
+                           status          VARCHAR(20)     NOT NULL DEFAULT 'PENDING',
                            chunk_count     INTEGER         NOT NULL DEFAULT 0,
-
-    -- Optional user-provided description
                            description     TEXT,
-
-    -- Error message if processing failed
                            error_message   TEXT,
-
                            created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
                            updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
 
@@ -62,28 +38,38 @@ CREATE TABLE documents (
 
                            CONSTRAINT chk_documents_status
                                CHECK (status IN (
-                                                 'PENDING',
-                                                 'PROCESSING',
-                                                 'READY',
-                                                 'FAILED'
+                                                 'PENDING', 'PROCESSING', 'READY', 'FAILED'
                                    )),
 
                            CONSTRAINT chk_documents_filename_not_empty
                                CHECK (LENGTH(TRIM(filename)) > 0),
 
                            CONSTRAINT chk_documents_file_size
-                               CHECK (file_size_bytes >= 0)
+                               CHECK (file_size_bytes >= 0),
+
+    -- FIX Issue #7: Prevent negative chunk counts
+    -- CodeRabbit: chunk_count is lifecycle state,
+    -- negative value breaks UI counts + metrics
+                           CONSTRAINT chk_documents_chunk_count
+                               CHECK (chunk_count >= 0)
 );
 
 -- ── Indexes ───────────────────────────────────────
 
--- User's documents (most common query)
 CREATE INDEX idx_documents_user_id
     ON documents (user_id);
 
--- Filter by status (find READY documents for search)
 CREATE INDEX idx_documents_user_status
     ON documents (user_id, status);
+
+-- FIX Issue #8: Composite unique constraint for
+-- document_id + user_id ownership verification.
+-- This enables document_chunks to reference BOTH
+-- columns ensuring chunk.user_id always matches
+-- the owning document's user_id.
+-- CodeRabbit: prevents cross-tenant integrity risk.
+CREATE UNIQUE INDEX uq_documents_id_user
+    ON documents (id, user_id);
 
 -- ── Auto-update trigger ───────────────────────────
 
@@ -98,13 +84,10 @@ COMMENT ON TABLE documents IS
     'Documents uploaded by users for RAG search.
      Actual content stored in document_chunks table.';
 
-COMMENT ON COLUMN documents.status IS
-    'PENDING: uploaded, awaiting processing.
-     PROCESSING: chunking and embedding in progress.
-     READY: all chunks embedded, available for search.
-     FAILED: processing error, see error_message.';
-
 COMMENT ON COLUMN documents.chunk_count IS
     'Number of chunks created from this document.
-     Updated when processing completes.
-     Use to estimate search coverage.';
+     Always >= 0. Updated when processing completes.';
+
+COMMENT ON INDEX uq_documents_id_user IS
+    'Enables composite FK in document_chunks.
+     Guarantees chunk.user_id matches document owner.';

@@ -10,12 +10,12 @@ import java.util.UUID;
 /**
  * Represents an uploaded document in the RAG system.
  *
- * Maps to the 'documents' table (V12 migration).
+ * Maps to the 'documents' table (V13 migration).
  * Stores metadata only — actual content in document_chunks.
  *
- * IMMUTABLE RECORD:
- * Use factory methods to create instances.
- * Use withXxx() methods to create updated copies.
+ * FIXES (CodeRabbit):
+ * - withReady() now validates totalChunks >= 0
+ *   Prevents invalid state from reaching persistence.
  */
 @Table("documents")
 public record Document(
@@ -51,16 +51,6 @@ public record Document(
         Instant updatedAt
 
 ) {
-    /**
-     * Create a new document in PENDING status.
-     * Called when user uploads a document.
-     *
-     * @param userId       owner of this document
-     * @param filename     original filename
-     * @param fileType     PDF/TXT/MARKDOWN
-     * @param fileSizeBytes file size in bytes
-     * @param description  optional user description
-     */
     public static Document create(
             UUID userId,
             String filename,
@@ -82,10 +72,6 @@ public record Document(
         );
     }
 
-    /**
-     * Create copy with PROCESSING status.
-     * Called when background processing starts.
-     */
     public Document withProcessing() {
         return new Document(
                 id, userId, filename, fileType,
@@ -97,12 +83,20 @@ public record Document(
     }
 
     /**
-     * Create copy with READY status and chunk count.
-     * Called when all chunks are embedded successfully.
+     * FIX: Guard against negative chunk counts.
+     * CodeRabbit Issue #4:
+     * Negative totalChunks is invalid domain state.
+     * Reject at domain boundary before reaching DB.
      *
-     * @param totalChunks number of chunks created
+     * @param totalChunks must be >= 0
+     * @throws IllegalArgumentException if negative
      */
     public Document withReady(int totalChunks) {
+        if (totalChunks < 0) {
+            throw new IllegalArgumentException(
+                    "totalChunks must be >= 0, "
+                            + "got: " + totalChunks);
+        }
         return new Document(
                 id, userId, filename, fileType,
                 fileSizeBytes,
@@ -112,12 +106,6 @@ public record Document(
         );
     }
 
-    /**
-     * Create copy with FAILED status and error message.
-     * Called when processing encounters an error.
-     *
-     * @param error description of what went wrong
-     */
     public Document withFailed(String error) {
         return new Document(
                 id, userId, filename, fileType,

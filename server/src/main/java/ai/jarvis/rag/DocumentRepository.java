@@ -11,41 +11,39 @@ import java.util.UUID;
 
 /**
  * Reactive repository for the documents table.
- * Spring Data R2DBC generates all implementations.
+ *
+ * FIX (CodeRabbit Issue #6):
+ * updateStatus() now takes DocumentStatus enum
+ * instead of raw String. This prevents invalid
+ * status values from reaching the database.
+ * The R2DBC converter in R2dbcConfig handles
+ * DocumentStatus → String conversion automatically.
  */
 @Repository
 public interface DocumentRepository
         extends R2dbcRepository<Document, UUID> {
 
-    /**
-     * Find all READY documents for a user.
-     * Only READY documents have searchable chunks.
-     */
     Flux<Document> findByUserIdAndStatusOrderByCreatedAtDesc(
             UUID userId, DocumentStatus status);
 
-    /**
-     * Find all documents for a user (any status).
-     * Used for document list UI.
-     */
     Flux<Document> findByUserIdOrderByCreatedAtDesc(
             UUID userId);
 
-    /**
-     * Find specific document with ownership check.
-     * Security: user can only access their documents.
-     */
     Mono<Document> findByIdAndUserId(
             UUID id, UUID userId);
 
-    /**
-     * Count documents for a user.
-     */
     Mono<Long> countByUserId(UUID userId);
 
     /**
-     * Update document status and chunk count.
-     * Called when processing completes.
+     * FIX Issue #6: Status parameter is now
+     * DocumentStatus enum (not raw String).
+     * Prevents invalid status values at compile time.
+     * R2dbcConfig converter handles enum → String.
+     *
+     * @param documentId  document to update
+     * @param status      DocumentStatus enum value
+     * @param chunkCount  chunk count (>= 0)
+     * @param errorMessage null unless FAILED
      */
     @Modifying
     @Query("""
@@ -58,7 +56,7 @@ public interface DocumentRepository
             """)
     Mono<Integer> updateStatus(
             UUID documentId,
-            String status,
+            DocumentStatus status,
             int chunkCount,
             String errorMessage);
 }
