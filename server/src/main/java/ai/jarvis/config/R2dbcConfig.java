@@ -2,6 +2,8 @@ package ai.jarvis.config;
 
 import ai.jarvis.chat.message.MessageRole;
 import ai.jarvis.memory.MemoryType;
+import ai.jarvis.rag.DocumentFileType;
+import ai.jarvis.rag.DocumentStatus;
 import ai.jarvis.user.UserRole;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,7 +33,11 @@ public class R2dbcConfig {
                         new UserRoleReadConverter(),
                         new UserRoleWriteConverter(),
                         new MessageRoleReadConverter(),
-                        new MessageRoleWriteConverter()
+                        new MessageRoleWriteConverter(),
+                        new DocumentStatusReadConverter(),
+                        new DocumentStatusWriteConverter(),
+                        new DocumentFileTypeReadConverter(),
+                        new DocumentFileTypeWriteConverter()
                 )
         );
     }
@@ -95,6 +101,46 @@ public class R2dbcConfig {
             implements Converter<MemoryType, String> {
         @Override
         public String convert(MemoryType source) {
+            return source.name();
+        }
+    }
+
+    // ── DocumentType converters ──────────────────────────
+
+    @ReadingConverter
+    public static class DocumentStatusReadConverter
+            implements Converter<String, DocumentStatus> {
+        @Override
+        public DocumentStatus convert(String source) {
+            return DocumentStatus.valueOf(
+                    source.toUpperCase());
+        }
+    }
+
+    @WritingConverter
+    public static class DocumentStatusWriteConverter
+            implements Converter<DocumentStatus, String> {
+        @Override
+        public String convert(DocumentStatus source) {
+            return source.name();
+        }
+    }
+
+    @ReadingConverter
+    public static class DocumentFileTypeReadConverter
+            implements Converter<String, DocumentFileType> {
+        @Override
+        public DocumentFileType convert(String source) {
+            return DocumentFileType.valueOf(
+                    source.toUpperCase());
+        }
+    }
+
+    @WritingConverter
+    public static class DocumentFileTypeWriteConverter
+            implements Converter<DocumentFileType, String> {
+        @Override
+        public String convert(DocumentFileType source) {
             return source.name();
         }
     }

@@ -1,50 +1,112 @@
 package ai.jarvis.ai.provider;
 
+import com.google.genai.Client;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.google.genai.GoogleGenAiChatModel;
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * Gemini provider using ChatClient.Builder.
- * Only activated when GEMINI_API_KEY is set.
+ * Gemini AI provider — cloud fallback.
  *
- * ChatClient.Builder is always available from
- * Spring AI regardless of which model is active.
- * It automatically uses whichever ChatModel
- * Spring Boot auto-configured.
+ * ACTIVATION:
+ * Only created when spring.ai.google.genai.api-key
+ * is set to a non-empty value.
+ *
+ * WHY MANUAL CLIENT:
+ * GoogleGenAiChatAutoConfiguration is excluded in
+ * application.yml because it throws IllegalStateException
+ * when api-key is empty/missing.
+ * We build the client manually here so it only
+ * initializes when the key actually exists.
+ *
+ * CONSTRUCTOR PATTERN (verified from Spring AI GitHub):
+ * Official integration test (GoogleGenAiChatModelIT.java)
+ * uses GoogleGenAiChatModel.builder() pattern.
+ * Source: github.com/spring-projects/spring-ai/blob/main/
+ * models/spring-ai-google-genai/src/test/java/
+ * org/springframework/ai/google/genai/
+ * GoogleGenAiChatModelIT.java
+ *
+ * Direct constructor requires 5 params including
+ * RetryTemplate + ObservationRegistry (not in pom.xml).
+ * Builder pattern handles these internally — zero extra deps.
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(
+        name = "spring.ai.google.genai.api-key",
+        matchIfMissing = false
+)
 public class GeminiProvider implements AiProvider {
 
     private final String apiKey;
     private final String modelName;
-    private ChatClient chatClient;
+    private final ChatClient chatClient;
 
     public GeminiProvider(
-            ChatClient.Builder builder,
-            @Value("${spring.ai.google.api-key:}")
+            @Value("${spring.ai.google.genai.api-key:}")
             String apiKey,
-            @Value("${spring.ai.google.chat.model:"
+            @Value("${spring.ai.google.genai.chat.model:"
                     + "gemini-2.0-flash}")
             String modelName) {
 
         this.apiKey = apiKey;
         this.modelName = modelName;
 
-        // Only build client if key is configured
         if (apiKey != null && !apiKey.isBlank()) {
-            this.chatClient = builder.build();
-            log.info("GeminiProvider initialized: "
-                    + "model={}", modelName);
+
+            // TEMPORARY DEBUG — remove after confirming key works
+            log.info(
+                    "Gemini API key loaded: length={} prefix={}",
+                    apiKey.length(),
+                    apiKey.substring(0, Math.min(8, apiKey.length()))
+            );
+
+            // Step 1: Build Google GenAI HTTP client
+            Client genAiClient = Client.builder()
+                    .apiKey(apiKey)
+                    .build();
+
+            // Step 2: Build GoogleGenAiChatModel
+            // Using builder() pattern — verified from
+            // official Spring AI integration test:
+            // GoogleGenAiChatModelIT.java uses:
+            // GoogleGenAiChatModel.builder()
+            //   .genAiClient(genAiClient)
+            //   .defaultOptions(options)
+            //   .build();
+            GoogleGenAiChatModel chatModel =
+                    GoogleGenAiChatModel.builder()
+                            .genAiClient(genAiClient)
+                            .defaultOptions(
+                                    GoogleGenAiChatOptions.builder()
+                                            .model(modelName)
+                                            .temperature(0.7)
+                                            .maxOutputTokens(2048)
+                                            .build()
+                            )
+                            .build();
+
+            // Step 3: Wrap in ChatClient for streaming
+            this.chatClient = ChatClient
+                    .builder(chatModel)
+                    .build();
+
+            log.info(
+                    "GeminiProvider initialized: model={}",
+                    modelName);
+
         } else {
             this.chatClient = null;
-            log.debug("GeminiProvider: "
-                    + "no API key configured");
+            log.debug(
+                    "GeminiProvider: no API key configured");
         }
     }
 
@@ -53,22 +115,20 @@ public class GeminiProvider implements AiProvider {
         if (chatClient == null) {
             return Flux.error(new RuntimeException(
                     "Gemini API key not configured. "
-                            + "Add GEMINI_API_KEY to .env"));
+                            + "Set GEMINI_API_KEY in environment."));
         }
         return chatClient
                 .prompt(prompt)
                 .stream()
-                .content()
-                .filter(t -> t != null
-                        && !t.isEmpty());
+                .content();
     }
 
     @Override
     public Mono<Boolean> isAvailable() {
-        boolean available = apiKey != null
+        boolean hasKey = apiKey != null
                 && !apiKey.isBlank()
                 && chatClient != null;
-        return Mono.just(available);
+        return Mono.just(hasKey);
     }
 
     @Override

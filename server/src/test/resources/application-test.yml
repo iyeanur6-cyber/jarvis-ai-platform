@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════
-# Jarvis AI Platform — Test Configuration
+# JARVIS AI PLATFORM — Test Configuration
 # Loaded when spring.profiles.active=test
 # ═══════════════════════════════════════════════════
 
@@ -17,10 +17,12 @@ spring:
     banner-mode: off
     log-startup-info: false
 
-  # Gemini excluded (no API key in tests)
   ai:
     google:
-      api-key: ""
+      genai:
+        # FIX: was "spring.ai.google.api-key"
+        # Correct full path matches application.yml
+        api-key: ""
 
 # Suppress unnecessary logging during tests
 logging:

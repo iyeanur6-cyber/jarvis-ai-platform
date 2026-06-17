@@ -1,20 +1,33 @@
 package ai.jarvis.ai.provider;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ProviderRouter {
 
     private final OllamaProvider ollamaProvider;
-    private final GeminiProvider geminiProvider;
-    // Use concrete types, not AiProvider interface
-    // This avoids Spring confusion with multiple
-    // AiProvider beans
+    private final AiProvider geminiProvider;
+
+    /**
+     * Single constructor — no @RequiredArgsConstructor.
+     * geminiProvider is AiProvider interface so it accepts
+     * BOTH GeminiProvider and GeminiUnavailableProvider.
+     * Spring injects whichever bean named "gemini" exists.
+     */
+    public ProviderRouter(
+            OllamaProvider ollamaProvider,
+            AiProvider geminiProvider) {
+        this.ollamaProvider = ollamaProvider;
+        this.geminiProvider = geminiProvider;
+        log.info(
+                "ProviderRouter initialized: "
+                        + "primary=ollama fallback={}",
+                geminiProvider.getName()
+                        + "(" + geminiProvider.getModelName() + ")");
+    }
 
     public Mono<AiProvider> route() {
         return ollamaProvider.isAvailable()
@@ -22,8 +35,7 @@ public class ProviderRouter {
                     if (ollamaUp) {
                         log.debug(
                                 "Routing to: ollama ({})",
-                                ollamaProvider.getModelName()
-                        );
+                                ollamaProvider.getModelName());
                         return Mono.just(
                                 (AiProvider) ollamaProvider);
                     }
@@ -38,11 +50,9 @@ public class ProviderRouter {
                                 if (geminiUp) {
                                     log.info(
                                             "Routing to: "
-                                                    + "gemini [FALLBACK]"
-                                    );
+                                                    + "gemini [FALLBACK]");
                                     return Mono.just(
-                                            (AiProvider)
-                                                    geminiProvider);
+                                            geminiProvider);
                                 }
                                 log.error(
                                         "All providers "
@@ -62,7 +72,7 @@ public class ProviderRouter {
             case "ollama" ->
                     Mono.just((AiProvider) ollamaProvider);
             case "gemini" ->
-                    Mono.just((AiProvider) geminiProvider);
+                    Mono.just(geminiProvider);
             default -> Mono.error(
                     new RuntimeException(
                             "Unknown provider: " + name));

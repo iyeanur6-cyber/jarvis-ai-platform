@@ -6,18 +6,21 @@ import org.springframework.test.context.TestPropertySource;
 
 @SpringBootTest
 @TestPropertySource(properties = {
-        // Security
+        // ── Security ────────────────────────────────
         "jarvis.security.jwt.secret="
                 + "test-secret-key-minimum-32-characters"
                 + "-long-enough-for-jwt-hmac-sha256",
 
+        // ── Shell ────────────────────────────────────
         // Disable interactive shell in tests
         "spring.shell.interactive.enabled=false",
 
-        // No Gemini in tests
-        "spring.ai.google.api-key=",
+        // ── Gemini — CORRECT property name ───────────
+        // FIX: was "spring.ai.google.api-key="
+        // must match application.yml exclusion key
+        "spring.ai.google.genai.api-key=",
 
-        // Database — match docker-compose port 5433
+        // ── Database ─────────────────────────────────
         "spring.r2dbc.url="
                 + "r2dbc:postgresql://localhost:5433/jarvis",
         "spring.datasource.url="
@@ -29,12 +32,13 @@ import org.springframework.test.context.TestPropertySource;
         "spring.flyway.user=jarvis",
         "spring.flyway.password=jarvis",
 
-        // Redis
+        // ── Redis ─────────────────────────────────────
         "spring.data.redis.host=localhost",
         "spring.data.redis.port=6379",
 
-        // pgvector — disable auto-init
-        "spring.ai.vectorstore.pgvector.initialize-schema=false"
+        // ── pgvector ──────────────────────────────────
+        "spring.ai.vectorstore.pgvector"
+                + ".initialize-schema=false"
 })
 class JarvisApplicationTests {
 
@@ -43,5 +47,6 @@ class JarvisApplicationTests {
         // Requires: docker-compose up -d
         // PostgreSQL on port 5433
         // Redis on port 6379
+        // Ollama running (or test will skip AI calls)
     }
 }
