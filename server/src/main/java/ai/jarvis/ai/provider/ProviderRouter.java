@@ -1,9 +1,28 @@
 package ai.jarvis.ai.provider;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+/**
+ * Routes AI requests to the correct provider.
+ *
+ * ROUTING LOGIC:
+ * 1. Check Ollama availability (local, primary)
+ * 2. If Ollama down → fallback to Gemini
+ * 3. If both down → error with helpful message
+ *
+ * FIX (CI Job #81959644503):
+ * Added @Qualifier("gemini") to constructor parameter.
+ * Without this, Spring cannot resolve which AiProvider
+ * bean to inject when multiple implementations exist.
+ *
+ * Both GeminiProvider and GeminiUnavailableProvider are
+ * now named "gemini" via @Component("gemini").
+ * Only ONE will be created (conditional beans).
+ * @Qualifier tells Spring exactly which name to inject.
+ */
 @Slf4j
 @Component
 public class ProviderRouter {
@@ -12,13 +31,24 @@ public class ProviderRouter {
     private final AiProvider geminiProvider;
 
     /**
-     * Single constructor — no @RequiredArgsConstructor.
-     * geminiProvider is AiProvider interface so it accepts
-     * BOTH GeminiProvider and GeminiUnavailableProvider.
-     * Spring injects whichever bean named "gemini" exists.
+     * FIX: @Qualifier("gemini") added.
+     *
+     * WHY THIS FIXES THE CI FAILURE:
+     * In CI: GEMINI_API_KEY is empty
+     * → GeminiProvider NOT created (ConditionalOnExpression)
+     * → GeminiUnavailableProvider IS created (@ConditionalOnMissingBean)
+     * → Both are named "gemini" via @Component("gemini")
+     * → @Qualifier("gemini") tells Spring to inject it
+     * → ProviderRouter creates successfully ✅
+     *
+     * Locally with API key set:
+     * → GeminiProvider IS created
+     * → GeminiUnavailableProvider NOT created
+     * → @Qualifier("gemini") injects GeminiProvider ✅
      */
     public ProviderRouter(
             OllamaProvider ollamaProvider,
+            @Qualifier("gemini")            // ← ADD this
             AiProvider geminiProvider) {
         this.ollamaProvider = ollamaProvider;
         this.geminiProvider = geminiProvider;
@@ -26,7 +56,9 @@ public class ProviderRouter {
                 "ProviderRouter initialized: "
                         + "primary=ollama fallback={}",
                 geminiProvider.getName()
-                        + "(" + geminiProvider.getModelName() + ")");
+                        + "("
+                        + geminiProvider.getModelName()
+                        + ")");
     }
 
     public Mono<AiProvider> route() {

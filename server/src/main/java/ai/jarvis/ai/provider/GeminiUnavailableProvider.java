@@ -16,7 +16,7 @@ import reactor.core.publisher.Mono;
  * even when GEMINI_API_KEY is not set.
  */
 @Slf4j
-@Component
+@Component("gemini")
 @ConditionalOnMissingBean(GeminiProvider.class)
 public class GeminiUnavailableProvider implements AiProvider {
 

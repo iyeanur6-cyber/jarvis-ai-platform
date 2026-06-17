@@ -39,7 +39,7 @@ import reactor.core.publisher.Mono;
  * Builder pattern handles these internally — zero extra deps.
  */
 @Slf4j
-@Component
+@Component("gemini")
 @ConditionalOnProperty(
         name = "spring.ai.google.genai.api-key",
         matchIfMissing = false
