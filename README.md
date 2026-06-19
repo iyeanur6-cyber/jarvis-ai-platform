@@ -52,12 +52,12 @@ It is a **modular AI orchestration platform** that runs entirely on your own mac
 | Phase   | Version | Feature             | Status           |
 | ------- | ------- | ------------------- | ---------------- |
 | Phase 1 | v0.1.0  | AI Chat + CLI + JWT | ✅ Released       |
-| Phase 2 | v0.2.0  | Memory System       | 🔨 Core Complete |
-| Phase 3 | v0.3.0  | RAG Engine          | 🔨 In Progress   |
-| Phase 4 | v0.4.0  | Tool Engine         | 📋 Planned       |
-| Phase 5 | v0.5.0  | Voice Assistant     | 📋 Planned       |
-| Phase 6 | v0.6.0  | Agent System        | 📋 Planned       |
-| Phase 7 | v1.0.0  | Web UI              | 📋 Planned       |
+| Phase 2 | v0.2.0  | Memory System       | ✅ Core Complete  |
+| Phase 3 | v0.3.0  | RAG Engine          | ✅ Core Complete  |
+| Phase 4 | v0.4.0  | Tool Engine         | 📋 Next          |
+| Phase 5 | v0.5.0  | Voice Assistant     | 📋 Planned        |
+| Phase 6 | v0.6.0  | Agent System        | 📋 Planned        |
+| Phase 7 | v1.0.0  | Web UI              | 📋 Planned        |
 
 ---
 
@@ -71,15 +71,19 @@ It is a **modular AI orchestration platform** that runs entirely on your own mac
 | PostgreSQL (all messages saved)  | ✅      | v0.1.0 |
 | Ollama local AI (primary)        | ✅      | v0.1.0 |
 | Gemini cloud AI (fallback)       | ✅      | v0.1.0 |
-| Provider abstraction             | ✅      | v0.1.0 |
 | Redis session caching            | ✅      | v0.2.0 |
 | Long-term memory storage         | ✅      | v0.2.0 |
 | Automatic memory extraction      | ✅      | v0.2.0 |
 | Memory injection into prompts    | ✅      | v0.2.0 |
 | pgvector semantic search         | ✅      | v0.2.0 |
-| Personalized responses           | ✅      | v0.2.0 |
-| Swagger UI                       | ✅      | v0.1.0 |
-| Health monitoring                | ✅      | v0.1.0 |
+| Document upload + processing     | ✅      | v0.3.0 |
+| Document chunking + embedding    | ✅      | v0.3.0 |
+| RAG semantic search              | ✅      | v0.3.0 |
+| RAG context injection            | ✅      | v0.3.0 |
+| Memory REST API                  | 📋     | v0.2.0 |
+| CLI memory commands              | 📋     | v0.2.0 |
+| Document REST API                | 📋     | v0.3.0 |
+| CLI document commands            | 📋     | v0.3.0 |
 
 ---
 
