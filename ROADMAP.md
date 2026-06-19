@@ -45,20 +45,15 @@ Architecture designed, repository structured, and documentation written before a
 
 ---
 
-# 🧠 Phase 2 — Memory System 🔨 Core Complete
+# 🧠 Phase 2 — Memory System ✅ Core Complete
 
-**Target:** `v0.2.0`
+**Released:** v0.2.0 core — June 2026
 
-## Infrastructure ✅
-
-* ✅ Redis 7 (session caching ~1ms vs ~50ms DB)
-* ✅ pgvector 0.7.4 (custom Docker build)
-* ✅ `memories` table (V9)
-* ✅ pgvector extension (V10)
-* ✅ embedding column on memories (V11)
-
-## Core Memory Pipeline ✅
-
+## Core ✅
+* ✅ Redis 7 session caching (~1ms vs ~50ms DB)
+* ✅ pgvector 0.7.4 embeddings
+* ✅ `memories` table (V9) + embedding column (V11)
+* ✅ Unique constraint (V12)
 * ✅ Memory entity + `MemoryType` enum
 * ✅ `MemoryRepository` (R2DBC)
 * ✅ `MemoryEmbeddingRepository` (JDBC/pgvector)
@@ -67,47 +62,40 @@ Architecture designed, repository structured, and documentation written before a
 * ✅ `MemoryExtractionService` (async AI extraction)
 * ✅ `PromptAssembler` updated (memory injection)
 * ✅ `AiOrchestrator` (parallel load via `Mono.zip`)
-* ✅ Prompt injection security (sanitization)
 
 ## Contributor Tasks 📋
-
-* 📋 Memory REST API (`GET`, `POST`, `DELETE /api/v1/memories`)
-* 📋 CLI memory commands (`memory list`, `memory add`, `memory delete`, `memory clear`)
-* 📋 Conversation summarization
-* 📋 Unit tests for `MemoryExtractionService`
-* 📋 HNSW index for memories (Phase 2.5)
+* 📋 Memory REST API (`GET`, `POST`, `DELETE`) — #35
+* 📋 CLI memory commands — #34
+* 📋 Conversation summarization — #37
 
 ---
 
-# 📚 Phase 3 — RAG Engine 🔨 In Progress
+# 📚 Phase 3 — RAG Engine ✅ Core Complete
 
-**Target:** `v0.3.0`
-**Goal:** Chat with your own documents.
+**Released:** v0.3.0 core — June 2026
 
-## Foundation 🔨
-
-* ✅ `documents` table (V12)
-* ✅ `document_chunks` table with pgvector (V13)
-* ✅ `Document` entity + `DocumentChunk` entity
-* ✅ `DocumentRepository` + `DocumentChunkRepository`
-* 🔨 `DocumentProcessingService` (chunking)
-* 🔨 `DocumentEmbeddingService` (embed chunks)
-* 🔨 `RagSearchService` (pgvector chunk search)
-* 🔨 `PromptAssembler` updated (inject chunks)
+## Core ✅
+* ✅ `documents` table (V13)
+* ✅ `document_chunks` + pgvector + HNSW index (V14)
+* ✅ `Document` + `DocumentChunk` entities
+* ✅ `TextExtractor` interface (Strategy Pattern)
+* ✅ `PlainTextExtractor` + `MarkdownExtractor`
+* ✅ `ChunkEmbeddingRepository` (JDBC/pgvector)
+* ✅ `DocumentProcessingService` (chunking)
+* ✅ `DocumentEmbeddingService` (async embedding)
+* ✅ `RagSearchService` (semantic search)
+* ✅ `PromptAssembler` updated (RAG injection step 4)
+* ✅ `AiOrchestrator` (3-way parallel `Mono.zip`)
 
 ## Contributor Tasks 📋
-
-* 📋 REST API: `POST /api/v1/documents` (upload)
-* 📋 REST API: `GET /api/v1/documents` (list)
-* 📋 REST API: `DELETE /api/v1/documents/{id}`
-* 📋 CLI: `doc upload`, `doc list`, `doc delete`
-* 📋 PDF text extraction (`Apache PDFBox`)
-* 📋 Markdown parsing
+* 📋 Document REST API
+* 📋 CLI document commands
+* 📋 PDF text extraction (PDFBox)
 * 📋 Tests
 
 ---
 
-# 🔧 Phase 4 — Tool Engine 📋 Planned (`v0.4.0`)
+# 🔧 Phase 4 — Tool Engine 📋 Next (v0.4.0)
 
 * 📋 `@Tool` annotation framework (Spring AI)
 * 📋 `DateTimeTool`
@@ -116,7 +104,6 @@ Architecture designed, repository structured, and documentation written before a
 * 📋 `WebSearchTool` (DuckDuckGo)
 * 📋 MCP Server (`@EnableMcpServer`)
 * 📋 MCP Client connections
-
 ---
 
 # 🎙️ Phase 5 — Voice 📋 Planned (`v0.5.0`)
