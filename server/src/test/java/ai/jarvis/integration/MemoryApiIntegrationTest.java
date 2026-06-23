@@ -315,7 +315,7 @@ class MemoryApiIntegrationTest {
                 .uri("/api/v1/memory/{memoryId}", memoryToDelete.id())
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().isNoContent()
                 .expectBody()
                 .jsonPath("$.data").doesNotExist();
     }
@@ -367,8 +367,7 @@ class MemoryApiIntegrationTest {
                 .uri("/api/v1/memory")
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
-                .expectStatus()
-                .isOk();
+                .expectStatus().isNoContent();
 
         List<Memory> memoriesFromDb = this.memoryRepository.findAll().collectList().block();
         assertNotNull(memoriesFromDb);
@@ -393,8 +392,7 @@ class MemoryApiIntegrationTest {
                 .uri("/api/v1/memory")
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
-                .expectStatus()
-                .isOk();
+                .expectStatus().isNoContent();
 
         List<Memory> memoriesFromDb = this.memoryRepository.findAll().collectList().block();
         assertNotNull(memoriesFromDb);

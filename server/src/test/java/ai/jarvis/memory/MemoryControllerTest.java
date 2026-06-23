@@ -222,7 +222,7 @@ class MemoryControllerTest {
                 .delete()
                 .uri("/api/v1/memory/{memoryId}", memoryId)
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isNoContent();
     }
 
     @Test
@@ -268,7 +268,7 @@ class MemoryControllerTest {
                 .delete()
                 .uri("/api/v1/memory")
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isNoContent();
     }
 
 }

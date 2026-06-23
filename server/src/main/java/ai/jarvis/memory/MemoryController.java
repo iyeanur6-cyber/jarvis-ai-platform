@@ -113,7 +113,7 @@ public class MemoryController {
     @Operation(summary = "Delete memory instance by id")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
+                    responseCode = "204",
                     description = "Successfully removed a memory record"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -138,17 +138,17 @@ public class MemoryController {
                     )
             )
     })
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @DeleteMapping(value = "/{memoryId}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<ApiResponse<Void>> deleteById(@PathVariable UUID memoryId, @Parameter(hidden = true) Mono<Authentication> authenticationMono) {
+    public Mono<Void> deleteById(@PathVariable UUID memoryId, @Parameter(hidden = true) Mono<Authentication> authenticationMono) {
         return getUserId(authenticationMono)
-                .flatMap(userId -> this.memoryService.delete(memoryId, userId))
-                .map(ApiResponse::ok);
+                .flatMap(userId -> this.memoryService.delete(memoryId, userId));
     }
 
     @Operation(summary = "Delete all memories related to user")
     @ApiResponses( value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
+                    responseCode = "204",
                     description = "Successfully removed all memory records"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -157,11 +157,11 @@ public class MemoryController {
                     content = @Content(schema = @Schema(hidden = true))
             )
     })
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @DeleteMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<ApiResponse<Void>> deleteAll(@Parameter(hidden = true) Mono<Authentication> authenticationMono) {
+    public Mono<Void> deleteAll(@Parameter(hidden = true) Mono<Authentication> authenticationMono) {
         return getUserId(authenticationMono)
-                .flatMap(this.memoryService::deleteAll)
-                .map(ApiResponse::ok);
+                .flatMap(this.memoryService::deleteAll);
     }
 
     private Mono<UUID> getUserId(Mono<Authentication> authenticationMono) {
