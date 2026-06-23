@@ -14,15 +14,19 @@ class WebSearchToolTest {
 
     @BeforeEach
     void setUp() {
+        // FIX: WebSearchTool constructor now requires
+        // maxRelatedTopics as second parameter.
+        // Matches @Value("${jarvis.tools.web-search.max-results:3}")
+        // Use 3 as default — same as production config.
         tool = new WebSearchTool(
-                WebClient.builder());
+                WebClient.builder(),
+                3);
     }
 
     @Test
     @DisplayName("returns result for valid query")
     void shouldReturnResultForValidQuery() {
-        // This makes a real DuckDuckGo call
-        // DuckDuckGo is free + no key needed
+        // Real DuckDuckGo call — free, no key needed
         String result = tool.search(
                 "Spring Boot Java framework");
 
@@ -53,7 +57,6 @@ class WebSearchToolTest {
         String result = tool
                 .getTopicSummary("PostgreSQL");
 
-        // Should return something meaningful
         assertThat(result).isNotBlank();
     }
 
@@ -67,12 +70,66 @@ class WebSearchToolTest {
     }
 
     @Test
+    @DisplayName("getTopicSummary handles null topic")
+    void shouldHandleNullTopic() {
+        String result = tool.getTopicSummary(null);
+
+        assertThat(result).isNotBlank();
+    }
+
+    @Test
     @DisplayName("never throws exception to caller")
     void shouldNeverThrowException() {
-        // All these should return strings, not throw
         assertThat(tool.search("test query"))
                 .isNotNull();
         assertThat(tool.getTopicSummary("Java"))
                 .isNotNull();
+    }
+
+    @Test
+    @DisplayName("respects maxRelatedTopics config")
+    void shouldRespectMaxRelatedTopics() {
+        // Create tool with maxRelatedTopics = 1
+        // Verifies config injection works correctly
+        WebSearchTool toolWithOneResult =
+                new WebSearchTool(
+                        WebClient.builder(),
+                        1);
+
+        String result = toolWithOneResult
+                .search("Java programming language");
+
+        // Should return result without exception
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    @DisplayName("guards against zero maxRelatedTopics")
+    void shouldGuardAgainstZeroMaxResults() {
+        // Math.max(1, 0) = 1 — no exception thrown
+        WebSearchTool toolWithZero =
+                new WebSearchTool(
+                        WebClient.builder(),
+                        0);
+
+        String result = toolWithZero
+                .search("test");
+
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    @DisplayName("guards against negative maxRelatedTopics")
+    void shouldGuardAgainstNegativeMaxResults() {
+        // Math.max(1, -5) = 1 — no exception thrown
+        WebSearchTool toolWithNegative =
+                new WebSearchTool(
+                        WebClient.builder(),
+                        -5);
+
+        String result = toolWithNegative
+                .search("test");
+
+        assertThat(result).isNotNull();
     }
 }

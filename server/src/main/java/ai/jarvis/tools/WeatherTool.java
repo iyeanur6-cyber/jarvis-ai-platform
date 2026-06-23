@@ -1,5 +1,6 @@
 package ai.jarvis.tools;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -20,15 +21,12 @@ import java.time.Duration;
  * Set OPENWEATHER_API_KEY in .env file.
  * Without key: returns helpful setup message.
  *
- * GRACEFUL DEGRADATION:
- * Never throws exception to AI model.
- * Always returns a usable String response.
  *
- * Example AI usage:
- * User: "What is the weather in Kathmandu?"
- * AI calls: getWeather("Kathmandu")
- * Returns: "Kathmandu: 22°C, Clear sky,
- *           Humidity: 45%, Wind: 8 km/h NE"
+ * 1. Null check for city + countryCode before trim()
+ *    Prevents NullPointerException on null inputs.
+ * 2. @JsonProperty("feels_like") on Main record
+ *    OpenWeather API returns snake_case field names.
+ *    Without this Jackson cannot map feels_like → feelsLike.
  */
 @Slf4j
 @Component
@@ -98,6 +96,7 @@ public class WeatherTool implements JarvisTool {
                     + "openweathermap.org/api";
         }
 
+        // FIX Issue 1: null check BEFORE trim()
         if (city == null || city.isBlank()) {
             return "Please specify a city name.";
         }
@@ -132,16 +131,14 @@ public class WeatherTool implements JarvisTool {
                     city, e.getMessage());
 
             if (e.getMessage() != null
-                    && e.getMessage()
-                    .contains("404")) {
+                    && e.getMessage().contains("404")) {
                 return "City not found: '" + city
                         + "'. Please check the city "
                         + "name and try again.";
             }
 
             if (e.getMessage() != null
-                    && e.getMessage()
-                    .contains("401")) {
+                    && e.getMessage().contains("401")) {
                 return "Invalid weather API key. "
                         + "Please check your "
                         + "OPENWEATHER_API_KEY in .env";
@@ -181,6 +178,17 @@ public class WeatherTool implements JarvisTool {
         if (!isConfigured()) {
             return "Weather tool is not configured. "
                     + "Add OPENWEATHER_API_KEY to .env";
+        }
+
+        // FIX Issue 1: validate BEFORE trim()
+        // city.trim() / countryCode.trim() would throw
+        // NullPointerException if either is null.
+        // Guard must happen before any trim() call.
+        if (city == null || city.isBlank()
+                || countryCode == null
+                || countryCode.isBlank()) {
+            return "Please specify both city "
+                    + "and country code.";
         }
 
         String query = city.trim() + ","
@@ -234,17 +242,14 @@ public class WeatherTool implements JarvisTool {
             WeatherResponse response) {
 
         StringBuilder sb = new StringBuilder();
-
         sb.append(city);
 
-        // Temperature
         if (response.main() != null) {
             sb.append(": ")
                     .append(String.format(
                             "%.1f°C",
                             response.main().temp()));
 
-            // Feels like if significantly different
             double diff = Math.abs(
                     response.main().temp()
                             - response.main().feelsLike());
@@ -255,12 +260,10 @@ public class WeatherTool implements JarvisTool {
             }
         }
 
-        // Weather description
         if (response.weather() != null
                 && !response.weather().isEmpty()) {
             String desc = response.weather()
                     .getFirst().description();
-            // Capitalize first letter
             if (desc != null && !desc.isEmpty()) {
                 desc = Character.toUpperCase(
                         desc.charAt(0))
@@ -269,23 +272,20 @@ public class WeatherTool implements JarvisTool {
             sb.append(", ").append(desc);
         }
 
-        // Humidity
         if (response.main() != null) {
             sb.append(", Humidity: ")
                     .append(response.main().humidity())
                     .append("%");
         }
 
-        // Wind
         if (response.wind() != null) {
             sb.append(", Wind: ")
                     .append(String.format(
                             "%.1f km/h",
                             response.wind().speed()
-                                    * 3.6)); // m/s to km/h
+                                    * 3.6));
         }
 
-        // Visibility if available
         if (response.visibility() != null
                 && response.visibility() > 0) {
             sb.append(", Visibility: ")
@@ -304,14 +304,18 @@ public class WeatherTool implements JarvisTool {
             Wind wind,
             Integer visibility) {}
 
+    /**
+     * @JsonProperty("feels_like")
+     * OpenWeather API returns snake_case field names.
+     * Without this annotation Jackson cannot map:
+     * feels_like (API) → feelsLike (Java record)
+     * Results in feelsLike = 0.0 silently.
+     */
     private record Main(
             double temp,
+            @JsonProperty("feels_like")
             double feelsLike,
-            int humidity) {
-        // Jackson needs this mapping
-        // handled by @JsonProperty in real impl
-        // Using record for simplicity
-    }
+            int humidity) {}
 
     private record Weather(
             String main,

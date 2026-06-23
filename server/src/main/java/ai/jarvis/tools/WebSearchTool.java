@@ -1,8 +1,11 @@
 package ai.jarvis.tools;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -16,23 +19,28 @@ import java.util.List;
  * FREE: No API key needed, no rate limits
  * Privacy: No tracking, fits Jarvis philosophy
  *
- * WHAT IT RETURNS:
- * - Instant answers (Wikipedia summaries etc.)
- * - Related topics
- * - Direct answer if available
+ * FIXES (CodeRabbit):
+ * 1. @ConditionalOnProperty — respects
+ *    jarvis.tools.web-search.enabled=false in config.
+ *    Previously always registered regardless of config.
  *
- * LIMITATION:
- * Not a full web scraper — returns structured
- * instant answers only. Perfect for factual queries.
+ * 2. maxRelatedTopics injected from config
+ *    jarvis.tools.web-search.max-results.
+ *    Previously hardcoded — config value was ignored.
  *
- * Example AI usage:
- * User: "Who invented Java programming language?"
- * AI calls: search("Java programming language inventor")
- * Returns: "Java was created by James Gosling at
- *           Sun Microsystems, released in 1995..."
+ * 3. @JsonProperty on SearchResponse + RelatedTopic
+ *    DuckDuckGo API returns PascalCase field names:
+ *    Answer, AbstractText, AbstractURL, RelatedTopics
+ *    Text, FirstURL.
+ *    Without @JsonProperty all fields deserialize as null.
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(
+        prefix = "jarvis.tools.web-search",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true)
 public class WebSearchTool implements JarvisTool {
 
     private static final String DDGO_API =
@@ -48,22 +56,32 @@ public class WebSearchTool implements JarvisTool {
     private static final int MAX_ABSTRACT_LENGTH = 500;
 
     /**
-     * Max related topics to include.
-     * Too many = token waste.
+     * FIX Issue 2: Injected from config instead of hardcoded.
+     * Reads from: jarvis.tools.web-search.max-results
+     * Default: 3 if not configured.
+     * Minimum: 1 (Math.max guard prevents 0 or negative).
      */
-    private static final int MAX_RELATED_TOPICS = 3;
+    private final int maxRelatedTopics;
 
     private final WebClient webClient;
 
     public WebSearchTool(
-            WebClient.Builder webClientBuilder) {
+            WebClient.Builder webClientBuilder,
+            @Value("${jarvis.tools.web-search.max-results:3}")
+            int maxRelatedTopics) {
+
+        // FIX Issue 2: guard against 0 or negative config
+        this.maxRelatedTopics = Math.max(1, maxRelatedTopics);
 
         this.webClient = webClientBuilder
                 .baseUrl(DDGO_API)
                 .build();
 
-        log.info("WebSearchTool initialized "
-                + "(DuckDuckGo — no API key needed)");
+        log.info(
+                "WebSearchTool initialized "
+                        + "(DuckDuckGo — no API key needed) "
+                        + "maxResults={}",
+                this.maxRelatedTopics);
     }
 
     /**
@@ -103,13 +121,10 @@ public class WebSearchTool implements JarvisTool {
             SearchResponse response = webClient
                     .get()
                     .uri(uriBuilder -> uriBuilder
-                            .queryParam("q",
-                                    query.trim())
-                            .queryParam("format",
-                                    "json")
+                            .queryParam("q", query.trim())
+                            .queryParam("format", "json")
                             .queryParam("no_html", "1")
-                            .queryParam(
-                                    "skip_disambig", "1")
+                            .queryParam("skip_disambig", "1")
                             .build())
                     .retrieve()
                     .bodyToMono(SearchResponse.class)
@@ -117,12 +132,10 @@ public class WebSearchTool implements JarvisTool {
                     .block();
 
             if (response == null) {
-                return "No results found for: "
-                        + query;
+                return "No results found for: " + query;
             }
 
-            return formatSearchResponse(
-                    query, response);
+            return formatSearchResponse(query, response);
 
         } catch (Exception e) {
             log.warn(
@@ -136,8 +149,7 @@ public class WebSearchTool implements JarvisTool {
     }
 
     /**
-     * Search for a specific topic and get summary.
-     * More focused than general search.
+     * Get a summary/definition of a specific topic.
      *
      * @param topic topic to get summary for
      * @return topic summary string
@@ -170,13 +182,10 @@ public class WebSearchTool implements JarvisTool {
             SearchResponse response = webClient
                     .get()
                     .uri(uriBuilder -> uriBuilder
-                            .queryParam("q",
-                                    topic.trim())
-                            .queryParam("format",
-                                    "json")
+                            .queryParam("q", topic.trim())
+                            .queryParam("format", "json")
                             .queryParam("no_html", "1")
-                            .queryParam(
-                                    "skip_disambig", "1")
+                            .queryParam("skip_disambig", "1")
                             .build())
                     .retrieve()
                     .bodyToMono(SearchResponse.class)
@@ -184,9 +193,8 @@ public class WebSearchTool implements JarvisTool {
                     .block();
 
             if (response == null
-                    || (response.abstractText() == null
-                    || response.abstractText()
-                    .isBlank())) {
+                    || response.abstractText() == null
+                    || response.abstractText().isBlank()) {
                 return "No summary found for '"
                         + topic + "'. "
                         + "Try rephrasing or use "
@@ -230,7 +238,6 @@ public class WebSearchTool implements JarvisTool {
 
         StringBuilder sb = new StringBuilder();
 
-        // Direct answer (best case)
         if (response.answer() != null
                 && !response.answer().isBlank()) {
             sb.append("**Direct Answer:** ")
@@ -238,17 +245,14 @@ public class WebSearchTool implements JarvisTool {
                     .append("\n\n");
         }
 
-        // Abstract (Wikipedia summary)
         if (response.abstractText() != null
                 && !response.abstractText().isBlank()) {
 
-            String abstractText =
-                    response.abstractText();
+            String abstractText = response.abstractText();
             if (abstractText.length()
                     > MAX_ABSTRACT_LENGTH) {
                 abstractText = abstractText.substring(
-                        0, MAX_ABSTRACT_LENGTH)
-                        + "...";
+                        0, MAX_ABSTRACT_LENGTH) + "...";
             }
 
             sb.append("**Summary:** ")
@@ -256,15 +260,13 @@ public class WebSearchTool implements JarvisTool {
                     .append("\n");
 
             if (response.abstractUrl() != null
-                    && !response.abstractUrl()
-                    .isBlank()) {
+                    && !response.abstractUrl().isBlank()) {
                 sb.append("Source: ")
                         .append(response.abstractUrl())
                         .append("\n");
             }
         }
 
-        // Related topics
         if (response.relatedTopics() != null
                 && !response.relatedTopics().isEmpty()) {
 
@@ -272,24 +274,21 @@ public class WebSearchTool implements JarvisTool {
                     response.relatedTopics().stream()
                             .filter(t -> t.text() != null
                                     && !t.text().isBlank())
-                            .limit(MAX_RELATED_TOPICS)
+                            // FIX Issue 2: use injected config
+                            .limit(maxRelatedTopics)
                             .toList();
 
             if (!topics.isEmpty()) {
                 sb.append("\n**Related:**\n");
                 topics.forEach(t ->
                         sb.append("- ")
-                                .append(t.text()
-                                        .length() > 100
-                                        ? t.text()
-                                        .substring(0, 100)
-                                          + "..."
+                                .append(t.text().length() > 100
+                                        ? t.text().substring(0, 100) + "..."
                                         : t.text())
                                 .append("\n"));
             }
         }
 
-        // Nothing found
         if (sb.isEmpty()) {
             return "No results found for: '"
                     + query + "'. "
@@ -301,14 +300,35 @@ public class WebSearchTool implements JarvisTool {
 
     // ── Response Records ──────────────────────────
 
+    /**
+     * FIX Issue 3: @JsonProperty for DuckDuckGo PascalCase.
+     * DuckDuckGo Instant Answer API returns PascalCase:
+     * Answer, AbstractText, AbstractURL, RelatedTopics.
+     * Jackson default LOWER_CAMEL_CASE cannot map these.
+     * Without @JsonProperty all fields return null.
+     * AbstractURL also has consecutive capitals (URL)
+     * which Jackson maps to abstractURL not abstractUrl.
+     */
     private record SearchResponse(
+            @JsonProperty("Answer")
             String answer,
+            @JsonProperty("AbstractText")
             String abstractText,
+            @JsonProperty("AbstractURL")
             String abstractUrl,
+            @JsonProperty("AbstractSource")
             String abstractSource,
+            @JsonProperty("RelatedTopics")
             List<RelatedTopic> relatedTopics) {}
 
+    /**
+     * @JsonProperty for RelatedTopic fields.
+     * DuckDuckGo returns Text and FirstURL (PascalCase).
+     * FirstURL has consecutive capitals causing extra issue.
+     */
     private record RelatedTopic(
+            @JsonProperty("Text")
             String text,
+            @JsonProperty("FirstURL")
             String firstUrl) {}
 }
