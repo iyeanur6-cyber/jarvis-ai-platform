@@ -89,23 +89,23 @@ class MemoryApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test GET /api/memory - Should return unauthorized for request without token")
+    @DisplayName("Test GET /api/v1/memory - Should return unauthorized for request without token")
     void testListMemories_ShouldReturnUnauthorizedForRequestWithoutToken() {
         // When + Then
         this.webTestClient
                 .get()
-                .uri("/api/memory")
+                .uri("/api/v1/memory")
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
 
     @Test
-    @DisplayName("Test GET /api/memory - Should return empty list when no memories found")
+    @DisplayName("Test GET /api/v1/memory - Should return empty list when no memories found")
     void testListMemories_ShouldReturnEmptyListWhenNoMemoriesFound() {
         // When + Then
         this.webTestClient
                 .get()
-                .uri("/api/memory")
+                .uri("/api/v1/memory")
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
                 .expectStatus().isOk()
@@ -114,7 +114,7 @@ class MemoryApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test GET /api/memory - Should return memories for user")
+    @DisplayName("Test GET /api/v1/memory - Should return memories for user")
     void testListMemories_ShouldReturnMemoriesForUser() {
         // Given
         Memory firstMemory = Memory.create(USER_ID, MemoryType.FACT, "First Memory", null);
@@ -126,7 +126,7 @@ class MemoryApiIntegrationTest {
         // When + Then
         this.webTestClient
                 .get()
-                .uri("/api/memory")
+                .uri("/api/v1/memory")
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
                 .expectStatus().isOk()
@@ -151,7 +151,7 @@ class MemoryApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test GET /api/memory - Should return memories only for current user")
+    @DisplayName("Test GET /api/v1/memory - Should return memories only for current user")
     void testListMemories_ShouldReturnMemoriesOnlyForCurrentUser() {
         // Given
         Memory anotherUsersFirstMemory = Memory.create(ANOTHER_USER_ID, MemoryType.FACT, "First memory", null);
@@ -167,7 +167,7 @@ class MemoryApiIntegrationTest {
         // When + Then
         this.webTestClient
                 .get()
-                .uri("/api/memory")
+                .uri("/api/v1/memory")
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
                 .expectStatus().isOk()
@@ -184,18 +184,18 @@ class MemoryApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test GET /api/memory/count - Should return unauthorized for request without token")
+    @DisplayName("Test GET /api/v1/memory/count - Should return unauthorized for request without token")
     void testCount_ShouldReturnUnauthorizedForRequestWithoutToken() {
         // When + Then
         this.webTestClient
                 .get()
-                .uri("/api/memory/count")
+                .uri("/api/v1/memory/count")
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
 
     @Test
-    @DisplayName("Test GET /api/memory/count - Should return memory count")
+    @DisplayName("Test GET /api/v1/memory/count - Should return memory count")
     void testCount_ShouldReturnCount() {
         // Given
         Memory firstMemory = Memory.create(USER_ID, MemoryType.FACT, "First Memory", null);
@@ -207,7 +207,7 @@ class MemoryApiIntegrationTest {
         // When + Then
         this.webTestClient
                 .get()
-                .uri("/api/memory/count")
+                .uri("/api/v1/memory/count")
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
                 .expectStatus().isOk()
@@ -216,7 +216,7 @@ class MemoryApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test GET /api/memory/count - Should return memory count only for current user's memories")
+    @DisplayName("Test GET /api/v1/memory/count - Should return memory count only for current user's memories")
     void testCount_ShouldReturnCountOnlyForCurrentUser() {
         // Given
         Memory anotherUsersFirstMemory = Memory.create(ANOTHER_USER_ID, MemoryType.FACT, "First memory", null);
@@ -232,7 +232,7 @@ class MemoryApiIntegrationTest {
         // When + Then
         this.webTestClient
                 .get()
-                .uri("/api/memory/count")
+                .uri("/api/v1/memory/count")
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
                 .expectStatus().isOk()
@@ -241,18 +241,18 @@ class MemoryApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test POST /api/memory - Should return unauthorized for request without token")
+    @DisplayName("Test POST /api/v1/memory - Should return unauthorized for request without token")
     void testCreate_ShouldReturnUnauthorizedForRequestWithoutToken() {
         // When + Then
         this.webTestClient
                 .post()
-                .uri("/api/memory")
+                .uri("/api/v1/memory")
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
 
     @Test
-    @DisplayName("Test POST /api/memory - Should save memory")
+    @DisplayName("Test POST /api/v1/memory - Should save memory")
     void testCreate_ShouldSaveMemory() {
         // Given
         String memoryContent = "Memory content";
@@ -262,7 +262,7 @@ class MemoryApiIntegrationTest {
         // When + Then
         this.webTestClient
                 .post()
-                .uri("/api/memory")
+                .uri("/api/v1/memory")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .bodyValue(memoryRequestJson)
@@ -292,18 +292,18 @@ class MemoryApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test DELETE /api/memory/{memoryId} - Should return unauthorized for request without token")
+    @DisplayName("Test DELETE /api/v1/memory/{memoryId} - Should return unauthorized for request without token")
     void testDelete_ShouldReturnUnauthorizedForRequestWithoutToken() {
         // When + Then
         this.webTestClient
                 .delete()
-                .uri("/api/memory/{memoryId}", USER_ID)
+                .uri("/api/v1/memory/{memoryId}", USER_ID)
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
 
     @Test
-    @DisplayName("Test DELETE /api/memory/{memoryId} - Should delete memory by id")
+    @DisplayName("Test DELETE /api/v1/memory/{memoryId} - Should delete memory by id")
     void testDelete_ShouldDeleteMemoryById() {
         // Given
         Memory memoryToDelete = Memory.create(USER_ID, MemoryType.FACT, "Memory Content", null);
@@ -312,7 +312,7 @@ class MemoryApiIntegrationTest {
         // When + Then
         this.webTestClient
                 .delete()
-                .uri("/api/memory/{memoryId}", memoryToDelete.id())
+                .uri("/api/v1/memory/{memoryId}", memoryToDelete.id())
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
                 .expectStatus().isOk()
@@ -321,7 +321,7 @@ class MemoryApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test DELETE /api/memory/{memoryId} - Should not delete memory related to another user")
+    @DisplayName("Test DELETE /api/v1/memory/{memoryId} - Should not delete memory related to another user")
     void testDelete_ShouldNotDeleteMemoryRelatedToAnotherUser() {
         // Given
         Memory anotherUsersMemory = Memory.create(ANOTHER_USER_ID, MemoryType.FACT, "Memory Content", null);
@@ -330,7 +330,7 @@ class MemoryApiIntegrationTest {
         // When + Then
         this.webTestClient
                 .delete()
-                .uri("/api/memory/{memoryId}", anotherUsersMemory.id())
+                .uri("/api/v1/memory/{memoryId}", anotherUsersMemory.id())
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
                 .expectStatus().isNotFound();
@@ -341,18 +341,18 @@ class MemoryApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test DELETE /api/memory - Should return unauthorized for request without token")
+    @DisplayName("Test DELETE /api/v1/memory - Should return unauthorized for request without token")
     void testDeleteAll_ShouldReturnUnauthorizedForRequestWithoutToken() {
         // When + Then
         this.webTestClient
                 .delete()
-                .uri("/api/memory")
+                .uri("/api/v1/memory")
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
 
     @Test
-    @DisplayName("Test DELETE /api/memory - Should delete all memory records")
+    @DisplayName("Test DELETE /api/v1/memory - Should delete all memory records")
     void testDeleteAll_ShouldDeleteAllMemoryRecords() {
         // Given
         Memory firstMemory = Memory.create(USER_ID, MemoryType.FACT, "First Memory", null);
@@ -364,7 +364,7 @@ class MemoryApiIntegrationTest {
         // When + Then
         this.webTestClient
                 .delete()
-                .uri("/api/memory")
+                .uri("/api/v1/memory")
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
                 .expectStatus()
@@ -376,7 +376,7 @@ class MemoryApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test DELETE /api/memory - Should delete all memory records only related to current user")
+    @DisplayName("Test DELETE /api/v1/memory - Should delete all memory records only related to current user")
     void testDeleteAll_ShouldDeleteOnlyMemoriesRelatedToCurrentUser() {
         // Given
         Memory firstMemory = Memory.create(USER_ID, MemoryType.FACT, "First Memory", null);
@@ -390,7 +390,7 @@ class MemoryApiIntegrationTest {
         // When + Then
         this.webTestClient
                 .delete()
-                .uri("/api/memory")
+                .uri("/api/v1/memory")
                 .header(HttpHeaders.AUTHORIZATION, this.authHeaderValue)
                 .exchange()
                 .expectStatus()
