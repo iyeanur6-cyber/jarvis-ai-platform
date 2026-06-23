@@ -193,12 +193,14 @@ public class MemoryService {
      * Delegates to save() for duplicate checking.
      *
      * @param userId  owner of this memory
-     * @param memoryRequest memory type and content
+     * @param type    FACT/GOAL/PREFERENCE/CONTEXT/EVENT
+     * @param content the actual memory text
      */
     public Mono<Memory> saveManual(
             UUID userId,
-            MemoryRequest memoryRequest) {
-        return save(userId, memoryRequest.memoryType(), memoryRequest.content(), null);
+            MemoryType type,
+            String content) {
+        return save(userId, type, content, null);
     }
 
     // ── Retrieve Operations ───────────────────────

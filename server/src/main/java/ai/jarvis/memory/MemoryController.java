@@ -116,9 +116,9 @@ public class MemoryController {
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<ApiResponse<MemoryResponse>> create(@Valid @RequestBody MemoryRequest memoryRequest, @Parameter(hidden = true) Mono<Authentication> authenticationMono) {
         return getUserId(authenticationMono)
-                .flatMap(userId -> this.memoryService.saveManual(userId, memoryRequest))
-                .map(this.memoryMapper::toResponse)
+                .flatMap(userId -> this.memoryService.saveManual(userId, memoryRequest.memoryType(), memoryRequest.content()))
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.CONFLICT, CONFLICT_MESSAGE)))
+                .map(this.memoryMapper::toResponse)
                 .map(ApiResponse::ok);
     }
 

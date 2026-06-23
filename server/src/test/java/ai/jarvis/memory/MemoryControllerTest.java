@@ -137,13 +137,12 @@ class MemoryControllerTest {
     void testCreate_ShouldSaveMemory() {
         // Given
         String memoryContent = "Memory content";
-        MemoryRequest memoryRequest = new MemoryRequest(MemoryType.FACT, memoryContent);
         String memoryRequestJson = createMemoryRequestJson(MemoryType.FACT, memoryContent);
 
         Memory memory = mock(Memory.class);
         MemoryResponse memoryResponse = new MemoryResponse(UUID.randomUUID(), MemoryType.FACT, "First Memory", 1.0, 1, Instant.now(), Instant.now().minus(Duration.ofDays(2)));
 
-        when(this.memoryService.saveManual(USER_ID, memoryRequest)).thenReturn(Mono.just(memory));
+        when(this.memoryService.saveManual(USER_ID, MemoryType.FACT, memoryContent)).thenReturn(Mono.just(memory));
         when(this.memoryMapper.toResponse(memory)).thenReturn(memoryResponse);
 
         // When + Then
@@ -170,10 +169,9 @@ class MemoryControllerTest {
     void testCreate_ShouldSendConflictWhenSavingAlreadyExistingMemoryContent() {
         // Given
         String memoryContent = "Memory content";
-        MemoryRequest memoryRequest = new MemoryRequest(MemoryType.FACT, memoryContent);
         String memoryRequestJson = createMemoryRequestJson(MemoryType.FACT, memoryContent);
 
-        when(this.memoryService.saveManual(USER_ID, memoryRequest)).thenReturn(Mono.empty());
+        when(this.memoryService.saveManual(USER_ID, MemoryType.FACT, memoryContent)).thenReturn(Mono.empty());
 
         // When + Then
         this.webTestClient
