@@ -299,7 +299,7 @@ public class WeatherTool implements JarvisTool {
 
     // ── Response Records ──────────────────────────
 
-    private record WeatherResponse(
+     record WeatherResponse(
             Main main,
             java.util.List<Weather> weather,
             Wind wind,
@@ -312,16 +312,16 @@ public class WeatherTool implements JarvisTool {
      * feels_like (API) → feelsLike (Java record)
      * Results in feelsLike = 0.0 silently.
      */
-    private record Main(
+     record Main(
             double temp,
             @JsonProperty("feels_like")
             double feelsLike,
             int humidity) {}
 
-    private record Weather(
+     record Weather(
             String main,
             String description) {}
 
-    private record Wind(
+     record Wind(
             double speed) {}
 }
