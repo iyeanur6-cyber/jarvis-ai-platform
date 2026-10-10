@@ -1,0 +1,19 @@
+{
+  "ExtensionInstallForcelist": [
+    "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx"
+  ],
+  "ExtensionSettings": {
+    "cjpalhdlnbpafiamejdnhcphjbkeiagm": {
+      "installation_mode": "force_installed",
+      "toolbar_pin": "force_pinned"
+    }
+  },
+  "PrivacySandboxAdTopicsEnabled": false,
+  "PrivacySandboxPromptEnabled": false,
+  "SearchSuggestEnabled": false,
+  "NetworkPredictionOptions": 2,
+  "MetricsReportingEnabled": false,
+  "SpellCheckServiceEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "PasswordManagerEnabled": false
+}
